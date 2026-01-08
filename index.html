@@ -1,0 +1,1011 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>지렁이 꼬리무는 게임 (레벨 100 + 특수먹이)</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <style>
+    html, body { margin:0; height:100%; background:#000; overflow:hidden; touch-action:none; }
+    canvas { display:block; width:100vw; height:100vh; }
+    .hud{
+      position:fixed; left:12px; top:10px; z-index:10;
+      color:#d8d8d8; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      user-select:none; opacity:.95; text-shadow:0 1px 0 rgba(0,0,0,.7);
+      pointer-events:none;
+    }
+    .hud b{ color:#fff; }
+    .hint{
+      position:fixed; left:12px; bottom:10px; z-index:10;
+      color:#9aa0a6; font:12px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      user-select:none; text-shadow:0 1px 0 rgba(0,0,0,.7);
+      pointer-events:none;
+    }
+
+    /* Mobile controls */
+    .controls{
+      position:fixed; inset:0; z-index:20; pointer-events:none;
+      display:flex; align-items:flex-end; justify-content:space-between;
+      padding:18px;
+    }
+    .pad, .actions{ pointer-events:none; display:flex; gap:10px; align-items:flex-end; }
+    .dpad{ display:grid; grid-template-columns:58px 58px 58px; grid-template-rows:58px 58px; gap:10px; pointer-events:auto; }
+    .btn{
+      width:58px; height:58px; border-radius:16px;
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.14);
+      box-shadow:0 8px 24px rgba(0,0,0,0.35);
+      display:flex; align-items:center; justify-content:center;
+      color:rgba(255,255,255,0.85);
+      font:700 16px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      user-select:none; -webkit-user-select:none;
+      pointer-events:auto;
+      backdrop-filter: blur(6px);
+    }
+    .btn:active{ transform: translateY(1px); background:rgba(255,255,255,0.12); }
+    .actions .btn{ width:84px; height:84px; border-radius:22px; font-size:14px; }
+    .actions .btn.small{ width:58px; height:58px; border-radius:16px; font-size:12px; }
+    .hidden{ display:none !important; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="hud" id="hud"></div>
+  <div class="hint">
+    조작: ←→↑↓ / WASD | P 일시정지 | R 재시작 | M 마우스/터치 조작 토글 | O 음소거<br/>
+    먹이: 일반(초록) / 무적(파랑) / 슬로우(보라) / 프리즈(하늘) / 고스트(흰) / 2배(금) / 수축(연두)
+  </div>
+
+  <div class="controls hidden" id="controls">
+    <div class="pad">
+      <div class="dpad">
+        <div class="btn" data-k="up">↑</div>
+        <div class="btn" data-k="boost">BOOST</div>
+        <div class="btn" data-k="down">↓</div>
+        <div class="btn" data-k="left">←</div>
+        <div class="btn" data-k="pause">P</div>
+        <div class="btn" data-k="right">→</div>
+      </div>
+    </div>
+    <div class="actions">
+      <div class="btn" data-k="toggle">MODE</div>
+      <div class="btn small" data-k="mute">MUTE</div>
+      <div class="btn small" data-k="reset">RESET</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  /*** Canvas ***/
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha:false });
+  function resize() {
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    canvas.width = Math.floor(window.innerWidth * dpr);
+    canvas.height = Math.floor(window.innerHeight * dpr);
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  /*** Helpers ***/
+  const TAU = Math.PI*2;
+  const rand = (a,b)=>Math.random()*(b-a)+a;
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const lerp = (a,b,t)=>a+(b-a)*t;
+  const dist2 = (ax,ay,bx,by)=>{ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
+  const hypot = (x,y)=>Math.hypot(x,y);
+  const angleTo = (ax,ay,bx,by)=>Math.atan2(by-ay, bx-ax);
+  const W = ()=>window.innerWidth;
+  const H = ()=>window.innerHeight;
+  function wrapAngle(a){ while(a>Math.PI)a-=TAU; while(a<-Math.PI)a+=TAU; return a; }
+
+  function circleRectCollide(cx, cy, cr, rx, ry, rw, rh) {
+    const closestX = clamp(cx, rx, rx+rw);
+    const closestY = clamp(cy, ry, ry+rh);
+    return dist2(cx,cy, closestX,closestY) <= cr*cr;
+  }
+
+  function reflectBallOnRect(ball, rect) {
+    const {x,y} = ball;
+    const rx = rect.x, ry = rect.y, rw = rect.w, rh = rect.h;
+    const closestX = clamp(x, rx, rx+rw);
+    const closestY = clamp(y, ry, ry+rh);
+    const dx = x - closestX;
+    const dy = y - closestY;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      ball.vx *= -1;
+      ball.x += Math.sign(dx || ball.vx) * 2;
+    } else {
+      ball.vy *= -1;
+      ball.y += Math.sign(dy || ball.vy) * 2;
+    }
+  }
+
+  /*** Input ***/
+  const keys = new Set();
+  const vkeys = { left:false, right:false, up:false, down:false, boost:false };
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    keys.add(k);
+    if (k === 'p') paused = !paused;
+    if (k === 'r') reset();
+    if (k === 'm') controlMode = (controlMode==='keys') ? 'pointer' : 'keys';
+    if (k === 'o') muted = !muted;
+  });
+  window.addEventListener('keyup', (e)=> keys.delete(e.key.toLowerCase()));
+
+  let pointer = { x: W()*0.5, y: H()*0.5, down:false };
+  window.addEventListener('pointermove', (e)=> { pointer.x = e.clientX; pointer.y = e.clientY; });
+  window.addEventListener('pointerdown', (e)=> { pointer.down = true; pointer.x = e.clientX; pointer.y = e.clientY; resumeAudio(); });
+  window.addEventListener('pointerup', ()=> { pointer.down = false; });
+
+  /*** Mobile UI ***/
+  const controlsEl = document.getElementById('controls');
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (isTouch) controlsEl.classList.remove('hidden');
+
+  function setVKey(name, on) { if (name in vkeys) vkeys[name] = on; }
+
+  controlsEl.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.btn'); if (!btn) return;
+    e.preventDefault(); resumeAudio();
+    const k = btn.dataset.k;
+    if (k === 'pause') { paused = !paused; return; }
+    if (k === 'reset') { reset(); return; }
+    if (k === 'toggle') { controlMode = (controlMode==='keys') ? 'pointer' : 'keys'; return; }
+    if (k === 'mute') { muted = !muted; return; }
+    if (k === 'left') setVKey('left', true);
+    if (k === 'right') setVKey('right', true);
+    if (k === 'up') setVKey('up', true);
+    if (k === 'down') setVKey('down', true);
+    if (k === 'boost') setVKey('boost', true);
+    btn.setPointerCapture(e.pointerId);
+  });
+  controlsEl.addEventListener('pointerup', (e) => {
+    const btn = e.target.closest('.btn'); if (!btn) return;
+    e.preventDefault();
+    const k = btn.dataset.k;
+    if (k === 'left') setVKey('left', false);
+    if (k === 'right') setVKey('right', false);
+    if (k === 'up') setVKey('up', false);
+    if (k === 'down') setVKey('down', false);
+    if (k === 'boost') setVKey('boost', false);
+  });
+  controlsEl.addEventListener('pointercancel', () => { for (const k in vkeys) vkeys[k] = false; });
+
+  /*** Audio (beeps) ***/
+  let audioCtx = null;
+  let muted = false;
+  function resumeAudio(){
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended') audioCtx.resume();
+    }catch{}
+  }
+  function beep(freq=440, dur=0.06, type='sine', gain=0.06){
+    if(muted) return;
+    if(!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur);
+  }
+
+  /*** Particles ***/
+  const particles = [];
+  function spawnParticles(x,y, count=18, baseSpeed=180, life=0.55, kind='eat'){
+    for(let i=0;i<count;i++){
+      const a = rand(0,TAU);
+      const s = baseSpeed*rand(0.35,1.0);
+      particles.push({ x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:life*rand(0.6,1.2), t:0, kind });
+    }
+  }
+  function updateParticles(dt){
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.t += dt;
+      p.x += p.vx*dt;
+      p.y += p.vy*dt;
+      p.vx *= Math.pow(0.02, dt);
+      p.vy *= Math.pow(0.02, dt);
+      if(p.t >= p.life) particles.splice(i,1);
+    }
+  }
+  function particleColor(kind){
+    if(kind==='hit') return 'rgba(255,90,90,0.9)';
+    if(kind==='inv') return 'rgba(120,190,255,0.95)';
+    if(kind==='slow') return 'rgba(200,120,255,0.95)';
+    if(kind==='freeze') return 'rgba(140,220,255,0.95)';
+    if(kind==='ghost') return 'rgba(240,240,240,0.95)';
+    if(kind==='x2') return 'rgba(255,215,120,0.95)';
+    if(kind==='shrink') return 'rgba(180,255,140,0.95)';
+    return 'rgba(120,255,170,0.9)';
+  }
+  function drawParticles(){
+    for(const p of particles){
+      const a = 1 - (p.t/p.life);
+      if(a<=0) continue;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = particleColor(p.kind);
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,2.2,0,TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /*** Levels (1~100) ***/
+  function makeLevel(lv){
+    const i = lv-1;
+    const needScore = (lv===1) ? 0 : Math.floor(3.2*i + 0.22*i*i + 2*Math.sqrt(i));
+    const balls = clamp(1 + Math.floor(i/10) + Math.floor(i/20), 1, 8);
+    const ballBaseSpeed = 210 + i*6.5;
+    const ballSpeedUpPerEat = 8 + Math.floor(i/12);
+    const obstacles = clamp(1 + Math.floor(i/4), 1, 28);
+    const obstacleSize = clamp(110 + i*1.3, 110, 240);
+    const growthPerEat = 6 + Math.floor(i/15);
+    const wormSpeedBonus = Math.min(140, i*1.8);
+    const pattern = i % 6;
+    return { level:lv, needScore, balls, ballBaseSpeed, ballSpeedUpPerEat, obstacles, obstacleSize, growthPerEat, wormSpeedBonus, pattern };
+  }
+  const LEVELS = Array.from({length:100}, (_,k)=>makeLevel(k+1));
+  function levelForScore(s){
+    let lo=1, hi=100, ans=1;
+    while(lo<=hi){
+      const mid = (lo+hi)>>1;
+      if (s >= LEVELS[mid-1].needScore) { ans=mid; lo=mid+1; }
+      else hi=mid-1;
+    }
+    return ans;
+  }
+
+  /*** Game state ***/
+  let paused=false, gameOver=false;
+  let score=0, level=1;
+  let controlMode='keys';
+  let gameT=0;
+
+  // Effects timers
+  let invUntil = 0;
+  let slowUntil = 0;
+  let freezeUntil = 0;
+  let ghostUntil = 0;
+  let x2Until = 0;
+  let slowMult = 1.0;
+
+  // level transition
+  let bannerUntil = 0;
+  let spawnGraceUntil = 0;
+
+  /*** Worm ***/
+  const worm = {
+    x:0,y:0,
+    heading:0, desiredHeading:0,
+    turnSpeed:5.2,
+    speed:230, baseSpeed:230, maxSpeed:560,
+    radius:8,
+    segmentSpacing:8,
+    points:[],
+    targetLength:26
+  };
+  function initWorm(){
+    worm.x=W()*0.25; worm.y=H()*0.5;
+    worm.heading=0; worm.desiredHeading=0;
+    worm.baseSpeed=230; worm.speed=worm.baseSpeed; worm.maxSpeed=560;
+    worm.radius=8;
+    worm.segmentSpacing=8;
+    worm.targetLength=26;
+    worm.points=[];
+    for(let i=0;i<worm.targetLength;i++){
+      worm.points.push({x: worm.x - i*worm.segmentSpacing, y: worm.y});
+    }
+  }
+
+  /*** Food types ***/
+  const FOOD = {
+    normal: { name:'일반', core:'rgba(160,255,200,0.95)', glow:'rgba(100,255,160,0.95)', kind:'eat' },
+    inv:    { name:'무적', core:'rgba(180,230,255,0.95)', glow:'rgba(120,190,255,0.95)', kind:'inv' },
+    slow:   { name:'슬로우', core:'rgba(230,180,255,0.95)', glow:'rgba(200,120,255,0.95)', kind:'slow' },
+    freeze: { name:'프리즈', core:'rgba(200,245,255,0.95)', glow:'rgba(140,220,255,0.95)', kind:'freeze' },
+    ghost:  { name:'고스트', core:'rgba(245,245,245,0.95)', glow:'rgba(220,220,220,0.9)', kind:'ghost' },
+    x2:     { name:'2배', core:'rgba(255,235,170,0.95)', glow:'rgba(255,215,120,0.95)', kind:'x2' },
+    shrink: { name:'수축', core:'rgba(210,255,190,0.95)', glow:'rgba(180,255,140,0.95)', kind:'shrink' },
+  };
+  const food = { x:0, y:0, r:6, type:'normal' };
+
+  let lastSpecialAt = -999;
+  function chooseNextFoodType(nowT){
+    const cdOK = (nowT - lastSpecialAt) > 3.0;
+    const baseSpecial = clamp(0.14 + (level-1)*0.003, 0.14, 0.42);
+    const roll = Math.random();
+    if (!cdOK || roll > baseSpecial) return 'normal';
+
+    const wInv = 22;
+    const wSlow = 20;
+    const wFreeze = 14 + Math.floor(level/25);
+    const wGhost = 14 + Math.floor(level/30);
+    const wX2 = 16 + Math.floor(level/20);
+    const wShrink = 10;
+    const bag = [
+      ['inv', wInv], ['slow', wSlow], ['freeze', wFreeze],
+      ['ghost', wGhost], ['x2', wX2], ['shrink', wShrink],
+    ];
+    let sum=0; for (const [,w] of bag) sum += w;
+    let r = Math.random()*sum;
+    for (const [t,w] of bag){
+      r -= w;
+      if (r <= 0){ lastSpecialAt = nowT; return t; }
+    }
+    lastSpecialAt = nowT;
+    return 'inv';
+  }
+
+  /*** Obstacles ***/
+  let obstacles=[];
+  function addRect(x,y,w,h){ obstacles.push({x,y,w,h}); }
+  function buildObstaclesForLevel(cfg){
+    obstacles=[];
+    const pad=28;
+    const base=cfg.obstacleSize;
+    const spawnSafe = { x:W()*0.25, y:H()*0.5, r:240 };
+    const avoidSpawn = (x,y,w,h)=> dist2(x+w/2,y+h/2, spawnSafe.x,spawnSafe.y) < spawnSafe.r*spawnSafe.r;
+    const p = cfg.pattern;
+
+    if (p===1){
+      const lanes = 2 + Math.min(4, Math.floor(cfg.level/20));
+      for(let i=0;i<lanes;i++){
+        const y = (H()/(lanes+1))*(i+1) + rand(-24,24);
+        const h = rand(18, 26);
+        const gapW = rand(140, 240);
+        const gapX = rand(W()*0.35, W()*0.75);
+        addRect(pad, y, Math.max(0, gapX-pad), h);
+        addRect(gapX+gapW, y, Math.max(0, W()-pad-(gapX+gapW)), h);
+      }
+    } else if (p===2){
+      const cw = rand(18, 30);
+      const ch = rand(18, 30);
+      addRect(W()*0.5 - cw/2, pad, cw, H()-pad*2);
+      addRect(pad, H()*0.5 - ch/2, W()-pad*2, ch);
+      const extra = Math.max(0, cfg.obstacles-2);
+      for(let k=0;k<extra;k++){
+        const w = rand(base*0.5, base*0.9);
+        const h = rand(base*0.5, base*0.9);
+        const x = rand(pad, W()-pad-w);
+        const y = rand(pad, H()-pad-h);
+        if(avoidSpawn(x,y,w,h)) { k--; continue; }
+        addRect(x,y,w,h);
+      }
+    } else if (p===3){
+      const cols = clamp(6 + Math.floor(cfg.level/18), 6, 10);
+      const rows = clamp(4 + Math.floor(cfg.level/26), 4, 8);
+      const cellW = (W()-pad*2)/cols;
+      const cellH = (H()-pad*2)/rows;
+      const thick = rand(14, 20);
+
+      for(let c=1;c<cols;c++){
+        if(Math.random() < 0.12) continue;
+        const x = pad + c*cellW - thick/2;
+        const gapRow = Math.floor(rand(0, rows));
+        for(let r=0;r<rows;r++){
+          if(r===gapRow) continue;
+          const y = pad + r*cellH;
+          addRect(x, y + thick*0.3, thick, cellH - thick*0.6);
+        }
+      }
+      for(let r=1;r<rows;r++){
+        if(Math.random() < 0.12) continue;
+        const y = pad + r*cellH - thick/2;
+        const gapCol = Math.floor(rand(0, cols));
+        for(let c=0;c<cols;c++){
+          if(c===gapCol) continue;
+          const x = pad + c*cellW;
+          addRect(x + thick*0.3, y, cellW - thick*0.6, thick);
+        }
+      }
+      obstacles = obstacles.filter(o => !avoidSpawn(o.x,o.y,o.w,o.h));
+    } else if (p===4){
+      const rows = 3 + Math.min(3, Math.floor(cfg.level/25));
+      for(let i=0;i<rows;i++){
+        const y = (H()/(rows+1))*(i+1) + rand(-18,18);
+        const h = rand(16, 24);
+        const gapW = rand(150, 260);
+        const gapX = (i%2===0) ? rand(W()*0.25, W()*0.55) : rand(W()*0.45, W()*0.75);
+        addRect(pad, y, Math.max(0, gapX-pad), h);
+        addRect(gapX+gapW, y, Math.max(0, W()-pad-(gapX+gapW)), h);
+      }
+    } else if (p===5){
+      const thick = rand(18, 26);
+      const rw = W()*0.55, rh = H()*0.45;
+      const rx = W()*0.5 - rw/2, ry = H()*0.5 - rh/2;
+      const gapTopX = rand(rx+rw*0.2, rx+rw*0.65);
+      const gapBotX = rand(rx+rw*0.25, rx+rw*0.7);
+      addRect(rx, ry, Math.max(0, gapTopX-rx), thick);
+      addRect(gapTopX+rw*0.18, ry, Math.max(0, rx+rw-(gapTopX+rw*0.18)), thick);
+      addRect(rx, ry+rh-thick, Math.max(0, gapBotX-rx), thick);
+      addRect(gapBotX+rw*0.18, ry+rh-thick, Math.max(0, rx+rw-(gapBotX+rw*0.18)), thick);
+      addRect(rx, ry, thick, rh);
+      addRect(rx+rw-thick, ry, thick, rh);
+
+      const extra = Math.max(0, cfg.obstacles-6);
+      for(let k=0;k<extra;k++){
+        const w = rand(base*0.45, base*0.85);
+        const h = rand(base*0.45, base*0.85);
+        const x = rand(pad, W()-pad-w);
+        const y = rand(pad, H()-pad-h);
+        if(avoidSpawn(x,y,w,h)) { k--; continue; }
+        addRect(x,y,w,h);
+      }
+    } else {
+      const count = cfg.obstacles;
+      for(let k=0;k<count;k++){
+        const long = Math.random()<0.5;
+        const w = long ? rand(base*0.9, base*1.6) : rand(base*0.6, base*1.1);
+        const h = long ? rand(base*0.6, base*1.1) : rand(base*0.9, base*1.6);
+        let placed=false;
+        for(let tries=0; tries<260; tries++){
+          const x = rand(pad, W()-pad-w);
+          const y = rand(pad, H()-pad-h);
+          if(avoidSpawn(x,y,w,h)) continue;
+          let ok=true;
+          for(const o of obstacles){
+            const overlap = x < o.x+o.w+18 && x+w+18 > o.x && y < o.y+o.h+18 && y+h+18 > o.y;
+            if(overlap){ ok=false; break; }
+          }
+          if(!ok) continue;
+          addRect(x,y,w,h);
+          placed=true; break;
+        }
+        if(!placed) break;
+      }
+    }
+    if (obstacles.length > 34) obstacles = obstacles.slice(0,34);
+  }
+
+  /*** Balls ***/
+  let balls=[];
+  function initBalls(cfg){
+    balls=[];
+    const n = cfg.balls;
+    for(let i=0;i<n;i++){
+      const r = 12 + Math.min(6, i);
+      const ang = rand(0,TAU);
+      const speed = cfg.ballBaseSpeed + i*12;
+      balls.push({
+        x: W()*rand(0.55,0.88),
+        y: H()*rand(0.18,0.82),
+        r,
+        speed,
+        speedUpPerEat: cfg.ballSpeedUpPerEat,
+        vx: Math.cos(ang)*speed,
+        vy: Math.sin(ang)*speed,
+        spawnT: 0
+      });
+    }
+  }
+
+  /*** Place food ***/
+  function placeFood(){
+    const margin=24;
+    for(let tries=0; tries<700; tries++){
+      const fx = rand(margin, W()-margin);
+      const fy = rand(margin, H()-margin);
+
+      let bad=false;
+      for(const o of obstacles){
+        if(circleRectCollide(fx,fy, food.r+10, o.x,o.y,o.w,o.h)){ bad=true; break; }
+      }
+      if(bad) continue;
+
+      for(const b of balls){
+        if(dist2(fx,fy,b.x,b.y) < (b.r+60)**2){ bad=true; break; }
+      }
+      if(bad) continue;
+
+      if(dist2(fx,fy,worm.x,worm.y) < 90**2) continue;
+      food.x=fx; food.y=fy;
+      return;
+    }
+    food.x=W()/2; food.y=H()/2;
+  }
+
+  /*** Apply level ***/
+  function applyLevel(lv, nowT){
+    level = lv;
+    const cfg = LEVELS[lv-1];
+    buildObstaclesForLevel(cfg);
+
+    worm.baseSpeed = 230 + cfg.wormSpeedBonus;
+    worm.maxSpeed = 560 + Math.min(120, cfg.wormSpeedBonus);
+    worm.speed = clamp(worm.speed, 170, worm.maxSpeed);
+
+    initBalls(cfg);
+    for(const b of balls) b.spawnT = 0;
+
+    bannerUntil = nowT + 1.1;
+    spawnGraceUntil = nowT + 0.75;
+
+    food.type = chooseNextFoodType(nowT);
+    placeFood();
+    beep(520,0.07,'square',0.04);
+    beep(660,0.07,'square',0.03);
+  }
+
+  /*** Reset ***/
+  function reset(){
+    paused=false; gameOver=false;
+    score=0; level=1; gameT=0;
+    invUntil=0; slowUntil=0; freezeUntil=0; ghostUntil=0; x2Until=0;
+    slowMult=1;
+    bannerUntil=0; spawnGraceUntil=0;
+    particles.length=0;
+    lastSpecialAt=-999;
+    initWorm();
+    applyLevel(1, 0);
+  }
+  reset();
+
+  /*** Effect activation ***/
+  function activateFood(type, nowT){
+    if (type==='inv'){
+      invUntil = Math.max(invUntil, nowT + 3.2);
+      spawnParticles(worm.x,worm.y, 26, 220, 0.65, 'inv');
+      beep(880,0.06,'triangle',0.06); beep(1120,0.05,'sine',0.05);
+    } else if (type==='slow'){
+      slowUntil = Math.max(slowUntil, nowT + 4.0);
+      spawnParticles(worm.x,worm.y, 26, 220, 0.65, 'slow');
+      beep(420,0.07,'triangle',0.06); beep(320,0.10,'sine',0.05);
+    } else if (type==='freeze'){
+      freezeUntil = Math.max(freezeUntil, nowT + 1.7);
+      spawnParticles(worm.x,worm.y, 30, 240, 0.65, 'freeze');
+      beep(980,0.06,'square',0.05); beep(740,0.08,'triangle',0.05);
+    } else if (type==='ghost'){
+      ghostUntil = Math.max(ghostUntil, nowT + 3.3);
+      spawnParticles(worm.x,worm.y, 30, 240, 0.65, 'ghost');
+      beep(640,0.08,'sine',0.05); beep(920,0.05,'triangle',0.05);
+    } else if (type==='x2'){
+      x2Until = Math.max(x2Until, nowT + 6.0);
+      spawnParticles(worm.x,worm.y, 34, 260, 0.70, 'x2');
+      beep(1040,0.06,'triangle',0.06); beep(1320,0.05,'sine',0.05);
+    } else if (type==='shrink'){
+      const cut = clamp(Math.floor(worm.targetLength * 0.10), 8, 30);
+      worm.targetLength = Math.max(20, worm.targetLength - cut);
+      if (worm.points.length > worm.targetLength) worm.points.length = worm.targetLength;
+      spawnParticles(worm.x,worm.y, 34, 260, 0.70, 'shrink');
+      beep(520,0.07,'square',0.05); beep(340,0.10,'sine',0.05);
+    } else {
+      spawnParticles(food.x, food.y, 22, 220, 0.55, 'eat');
+      beep(760,0.06,'triangle',0.07); beep(980,0.05,'sine',0.05);
+    }
+  }
+
+  /*** Update worm ***/
+  function updateWorm(dt, nowT){
+    const left  = keys.has('arrowleft') || keys.has('a') || vkeys.left;
+    const right = keys.has('arrowright')|| keys.has('d') || vkeys.right;
+    const up    = keys.has('arrowup')   || keys.has('w') || vkeys.up;
+    const down  = keys.has('arrowdown') || keys.has('s') || vkeys.down;
+
+    if(controlMode==='pointer'){
+      worm.desiredHeading = angleTo(worm.x,worm.y, pointer.x,pointer.y);
+      const boost = pointer.down || vkeys.boost;
+      const targetSpeed = clamp(worm.baseSpeed + (boost?160:0), 170, worm.maxSpeed);
+      worm.speed = lerp(worm.speed, targetSpeed, 0.14);
+    } else {
+      let turn=0;
+      if(left) turn -= 1;
+      if(right) turn += 1;
+      worm.desiredHeading = worm.desiredHeading + turn*worm.turnSpeed*dt;
+
+      const boost = (up || vkeys.boost) ? 1 : 0;
+      const brake = down ? 1 : 0;
+      const targetSpeed = clamp(worm.speed + (boost-brake)*175*dt, 170, worm.maxSpeed);
+      worm.speed = lerp(worm.speed, targetSpeed, 0.10);
+    }
+
+    const delta = wrapAngle(worm.desiredHeading - worm.heading);
+    const maxTurn = worm.turnSpeed*dt;
+    worm.heading += clamp(delta, -maxTurn, maxTurn);
+
+    worm.x += Math.cos(worm.heading)*worm.speed*dt;
+    worm.y += Math.sin(worm.heading)*worm.speed*dt;
+
+    const inv = nowT < invUntil;
+    const ghost = nowT < ghostUntil;
+
+    const pad=6;
+    if(!inv && (worm.x<pad || worm.x>W()-pad || worm.y<pad || worm.y>H()-pad)){
+      die(); return;
+    }
+
+    if(!inv && !ghost){
+      for(const o of obstacles){
+        if(circleRectCollide(worm.x,worm.y,worm.radius,o.x,o.y,o.w,o.h)){
+          die(); return;
+        }
+      }
+    }
+
+    worm.points[0].x = worm.x;
+    worm.points[0].y = worm.y;
+
+    for(let i=1;i<worm.points.length;i++){
+      const prev=worm.points[i-1];
+      const p=worm.points[i];
+      const vx=prev.x-p.x, vy=prev.y-p.y;
+      const d=hypot(vx,vy) || 1;
+      const target=worm.segmentSpacing;
+      const diff=d-target;
+      const pull=diff*0.62;
+      p.x += (vx/d)*pull;
+      p.y += (vy/d)*pull;
+      p.x = lerp(p.x, prev.x - (vx/d)*target, 0.08);
+      p.y = lerp(p.y, prev.y - (vy/d)*target, 0.08);
+    }
+
+    while(worm.points.length < worm.targetLength){
+      const tail = worm.points[worm.points.length-1];
+      worm.points.push({x:tail.x,y:tail.y});
+    }
+
+    if(!inv && !ghost){
+      const bodyR = Math.max(3.5, worm.radius-2.5);
+      const hitR = worm.radius + bodyR - 1;
+      const hitR2 = hitR*hitR;
+      for(let i=14;i<worm.points.length;i+=2){
+        const p=worm.points[i];
+        if(dist2(worm.x,worm.y,p.x,p.y) <= hitR2){
+          die(); return;
+        }
+      }
+    }
+  }
+
+  /*** Update balls ***/
+  function updateBalls(dt, nowT){
+    slowMult = (nowT < slowUntil) ? 0.55 : 1.0;
+    const frozen = nowT < freezeUntil;
+
+    for(const b of balls){
+      b.spawnT += dt;
+
+      if(!frozen){
+        b.x += b.vx*dt;
+        b.y += b.vy*dt;
+
+        if(b.x < b.r){ b.x=b.r; b.vx*=-1; }
+        if(b.x > W()-b.r){ b.x=W()-b.r; b.vx*=-1; }
+        if(b.y < b.r){ b.y=b.r; b.vy*=-1; }
+        if(b.y > H()-b.r){ b.y=H()-b.r; b.vy*=-1; }
+
+        for(const o of obstacles){
+          if(circleRectCollide(b.x,b.y,b.r,o.x,o.y,o.w,o.h)){
+            reflectBallOnRect(b,o);
+          }
+        }
+      }
+
+      const s = hypot(b.vx,b.vy) || 1;
+      const target = frozen ? 0 : (b.speed * slowMult);
+      if (target === 0){
+        b.vx = 0; b.vy = 0;
+      } else {
+        b.vx = (b.vx/s)*target;
+        b.vy = (b.vy/s)*target;
+      }
+    }
+
+    if (!frozen){
+      for(let i=0;i<balls.length;i++){
+        for(let j=i+1;j<balls.length;j++){
+          const a=balls[i], b=balls[j];
+          const rr=a.r+b.r;
+          const dx=b.x-a.x, dy=b.y-a.y;
+          const d=hypot(dx,dy);
+          if(d>0 && d<rr){
+            const nx=dx/d, ny=dy/d;
+            const push=(rr-d)*0.5;
+            a.x -= nx*push; a.y -= ny*push;
+            b.x += nx*push; b.y += ny*push;
+
+            const avn = a.vx*nx + a.vy*ny;
+            const bvn = b.vx*nx + b.vy*ny;
+            const delta = bvn - avn;
+            a.vx += nx*delta; a.vy += ny*delta;
+            b.vx -= nx*delta; b.vy -= ny*delta;
+          }
+        }
+      }
+    }
+  }
+
+  /*** Eat & level up ***/
+  function checkEat(nowT){
+    const eatR = worm.radius + food.r + 2;
+    if(dist2(worm.x,worm.y,food.x,food.y) <= eatR*eatR){
+      const add = (nowT < x2Until) ? 2 : 1;
+      score += add;
+
+      const nextLv = levelForScore(score);
+      const cfg = LEVELS[nextLv-1];
+
+      worm.targetLength += cfg.growthPerEat;
+
+      for(const b of balls){
+        b.speed += cfg.ballSpeedUpPerEat;
+        if (nowT >= freezeUntil){
+          const ang = Math.atan2(b.vy,b.vx) + rand(-0.22,0.22);
+          const s = b.speed * slowMult;
+          b.vx = Math.cos(ang) * s;
+          b.vy = Math.sin(ang) * s;
+        }
+      }
+
+      activateFood(food.type, nowT);
+
+      if(nextLv !== level){
+        applyLevel(nextLv, nowT);
+      } else {
+        food.type = chooseNextFoodType(nowT);
+        placeFood();
+      }
+    }
+  }
+
+  /*** Death by balls ***/
+  function checkDeathByBalls(nowT){
+    const inv = nowT < invUntil;
+    const grace = nowT < spawnGraceUntil;
+    if(inv || grace) return false;
+
+    const headR = worm.radius;
+    const bodyR = Math.max(3.5, worm.radius-2.5);
+
+    for(const b of balls){
+      const hitR = headR + b.r - 1;
+      if(dist2(worm.x,worm.y,b.x,b.y) <= hitR*hitR) return true;
+
+      const hitBR = bodyR + b.r - 1;
+      const hitBR2 = hitBR*hitBR;
+      for(let i=10;i<worm.points.length;i+=2){
+        const p=worm.points[i];
+        if(dist2(p.x,p.y,b.x,b.y) <= hitBR2) return true;
+      }
+    }
+    return false;
+  }
+
+  function die(){
+    if(gameOver) return;
+    gameOver = true;
+    spawnParticles(worm.x,worm.y, 56, 340, 0.8, 'hit');
+    beep(170,0.12,'sawtooth',0.07);
+    beep(110,0.16,'sawtooth',0.05);
+  }
+
+  /*** Rendering ***/
+  function drawBackground(){
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,W(),H());
+  }
+  function drawObstacles(){
+    for(const o of obstacles){
+      ctx.fillStyle='rgba(120,120,255,0.10)';
+      ctx.fillRect(o.x-6,o.y-6,o.w+12,o.h+12);
+      ctx.fillStyle='rgba(140,150,255,0.22)';
+      ctx.fillRect(o.x,o.y,o.w,o.h);
+      ctx.strokeStyle='rgba(210,220,255,0.26)';
+      ctx.lineWidth=1;
+      ctx.strokeRect(o.x+0.5,o.y+0.5,o.w-1,o.h-1);
+    }
+  }
+  function drawFood(){
+    const f = FOOD[food.type] || FOOD.normal;
+    const g=ctx.createRadialGradient(food.x,food.y,1, food.x,food.y, food.r*4);
+    g.addColorStop(0, f.glow);
+    g.addColorStop(1, f.glow.replace('0.95','0.0').replace('0.9','0.0'));
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(food.x,food.y, food.r*4, 0, TAU); ctx.fill();
+    ctx.fillStyle=f.core;
+    ctx.beginPath(); ctx.arc(food.x,food.y, food.r, 0, TAU); ctx.fill();
+    ctx.globalAlpha=0.55;
+    ctx.strokeStyle=f.core;
+    ctx.lineWidth=1.3;
+    ctx.beginPath(); ctx.arc(food.x,food.y, food.r*1.65, 0, TAU); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  function drawBalls(nowT){
+    const frozen = nowT < freezeUntil;
+    for(const b of balls){
+      const t = clamp(b.spawnT / 0.6, 0, 1);
+      const ease = t*t*(3-2*t);
+      const alpha = 0.35 + 0.65*ease;
+      const scale = 0.65 + 0.35*ease;
+      const rr = b.r*scale;
+
+      const g = ctx.createRadialGradient(b.x-rr*0.35,b.y-rr*0.35,2, b.x,b.y, rr*2.2);
+      g.addColorStop(0, `rgba(255,90,90,${alpha})`);
+      g.addColorStop(1, `rgba(255,90,90,0.0)`);
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(b.x,b.y, rr*2.2, 0, TAU); ctx.fill();
+
+      ctx.fillStyle = frozen ? `rgba(180,220,255,${alpha})` : `rgba(255,120,120,${alpha})`;
+      ctx.beginPath(); ctx.arc(b.x,b.y, rr, 0, TAU); ctx.fill();
+    }
+  }
+  function drawWorm(nowT){
+    const pts=worm.points;
+    if(pts.length<3) return;
+    const inv = nowT < invUntil;
+    const ghost = nowT < ghostUntil;
+    const base=worm.radius;
+
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+
+    for(let pass=0; pass<2; pass++){
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length-1;i++){
+        const cx=pts[i].x, cy=pts[i].y;
+        const nx=(pts[i].x+pts[i+1].x)/2;
+        const ny=(pts[i].y+pts[i+1].y)/2;
+        ctx.quadraticCurveTo(cx,cy,nx,ny);
+      }
+      ctx.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+
+      let s0 = pass===0 ? 'rgba(120,190,255,0.55)' : 'rgba(180,230,255,0.88)';
+      if(inv) s0 = pass===0 ? 'rgba(120,190,255,0.55)' : 'rgba(200,240,255,0.95)';
+      if(ghost) s0 = pass===0 ? 'rgba(220,220,220,0.35)' : 'rgba(245,245,245,0.70)';
+
+      ctx.strokeStyle = s0;
+      ctx.lineWidth = pass===0 ? base*2.6 : base*1.9;
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = ghost ? 'rgba(245,245,245,0.85)' : (inv ? 'rgba(220,250,255,0.98)' : 'rgba(220,245,255,0.95)');
+    ctx.beginPath(); ctx.arc(worm.x,worm.y, base*0.72, 0, TAU); ctx.fill();
+
+    ctx.fillStyle='rgba(0,0,0,0.6)';
+    ctx.beginPath();
+    ctx.arc(
+      worm.x + Math.cos(worm.heading)*base*0.65,
+      worm.y + Math.sin(worm.heading)*base*0.65,
+      1.6, 0, TAU
+    );
+    ctx.fill();
+  }
+  function drawPointerHint(){
+    if(controlMode!=='pointer') return;
+    ctx.globalAlpha=0.55;
+    ctx.strokeStyle='rgba(200,255,220,0.5)';
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.arc(pointer.x,pointer.y, (pointer.down||vkeys.boost)?16:12, 0, TAU);
+    ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  function drawBanner(nowT){
+    if(nowT > bannerUntil) return;
+    const t = 1 - clamp((bannerUntil - nowT)/1.1, 0, 1);
+    const a = Math.sin(Math.min(1,t)*Math.PI);
+    ctx.save();
+    ctx.globalAlpha = 0.85 * a;
+    ctx.fillStyle='rgba(0,0,0,0.35)';
+    ctx.fillRect(0, H()*0.28, W(), H()*0.16);
+
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';
+    ctx.font='800 44px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillText(`LEVEL ${level}`, W()/2, H()*0.36);
+
+    ctx.fillStyle='rgba(200,200,200,0.95)';
+    ctx.font='500 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    const cfg=LEVELS[level-1];
+    const patternName = ['랜덤','터널','크로스','미로','더블터널','링'][cfg.pattern] || '랜덤';
+    ctx.fillText(`패턴: ${patternName} | 공: ${cfg.balls} | 장애물: ${cfg.obstacles}`, W()/2, H()*0.42);
+    ctx.restore();
+  }
+  function drawGameOver(){
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,0.55)';
+    ctx.fillRect(0,0,W(),H());
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+
+    ctx.fillStyle='#fff';
+    ctx.font='800 44px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillText('GAME OVER', W()/2, H()/2 - 42);
+
+    ctx.fillStyle='#d0d0d0';
+    ctx.font='400 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillText(`점수: ${score} | 레벨: ${level}/100  (R 키로 재시작)`, W()/2, H()/2 + 6);
+
+    ctx.fillStyle='#9aa0a6';
+    ctx.font='400 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillText(`사망: 공/벽/장애물/자기몸통 충돌 (무적=면역, 고스트=장애물/몸통 통과)`, W()/2, H()/2 + 34);
+    ctx.restore();
+  }
+  function updateHud(nowT){
+    const hud=document.getElementById('hud');
+    const cfg=LEVELS[level-1];
+    const len=worm.targetLength;
+    const maxBallSpeed = Math.round(Math.max(...balls.map(b=>b.speed)) * ((nowT<freezeUntil)?0:slowMult));
+    const mode = (controlMode==='pointer') ? '마우스/터치' : '키보드';
+
+    const left = (t)=>Math.max(0, t-nowT);
+    const invL = left(invUntil), slowL = left(slowUntil), frzL = left(freezeUntil), ghoL = left(ghostUntil), x2L = left(x2Until);
+    const eff = [];
+    if(invL>0) eff.push(`무적 ${invL.toFixed(1)}s`);
+    if(ghoL>0) eff.push(`고스트 ${ghoL.toFixed(1)}s`);
+    if(slowL>0) eff.push(`슬로우 ${slowL.toFixed(1)}s`);
+    if(frzL>0) eff.push(`프리즈 ${frzL.toFixed(1)}s`);
+    if(x2L>0) eff.push(`2배 ${x2L.toFixed(1)}s`);
+
+    hud.innerHTML =
+      `<b>점수</b>: ${score} &nbsp; | &nbsp; <b>레벨</b>: ${level}/100` +
+      ` &nbsp; | &nbsp; <b>길이</b>: ${len}` +
+      ` &nbsp; | &nbsp; <b>공</b>: ${cfg.balls}개 (속도 ${maxBallSpeed})` +
+      ` &nbsp; | &nbsp; <b>장애물</b>: ${cfg.obstacles}` +
+      ` &nbsp; | &nbsp; <b>먹이</b>: ${FOOD[food.type].name}` +
+      ` &nbsp; | &nbsp; <b>조작</b>: ${mode}` +
+      (eff.length ? ` &nbsp; | &nbsp; <b>효과</b>: ${eff.join(' / ')}` : '') +
+      (paused ? ` &nbsp; | &nbsp; <b>PAUSED</b>` : '') +
+      (muted ? ` &nbsp; | &nbsp; <b>MUTED</b>` : '');
+  }
+
+  /*** Main loop ***/
+  let last = performance.now();
+  function frame(now){
+    const dt = clamp((now-last)/1000, 0, 0.033);
+    last = now;
+
+    if(!paused && !gameOver){
+      gameT += dt;
+      updateWorm(dt, gameT);
+      updateBalls(dt, gameT);
+      updateParticles(dt);
+      checkEat(gameT);
+      if(!gameOver && checkDeathByBalls(gameT)) die();
+    }
+
+    drawBackground();
+    drawObstacles();
+    drawFood();
+    drawBalls(gameT);
+    drawWorm(gameT);
+    drawParticles();
+    drawPointerHint();
+    drawBanner(gameT);
+    updateHud(gameT);
+
+    if(gameOver) drawGameOver();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+
+<!-- Service Worker 등록 -->
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js");
+  }
+</script>
+</body>
+</html>
