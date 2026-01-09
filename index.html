@@ -576,11 +576,7 @@
     }
   }
   
-  // 타이틀 화면
-  let showTitle = true;
-  let titleUntil = 0;
-  let titleStartTime = 0;
-  
+  // 타이틀 화면 함수
   function drawTitle(nowT){
     if(!showTitle) return;
     
@@ -713,6 +709,11 @@
   let score=0, level=1;
   let controlMode='keys';
   let gameT=0;
+  
+  // 타이틀 화면 변수 (함수보다 먼저 선언)
+  let showTitle = true;
+  let titleUntil = 0;
+  let titleStartTime = 0;
 
   // Effects timers
   let invUntil = 0;
