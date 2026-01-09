@@ -173,10 +173,10 @@
   window.addEventListener('resize', resize);
   resize();
 
-  /*** Game state variables (must be declared first) ***/
+  /*** Game state variables ***/
   let showTitle = true;
   let controlMode = 'keys';
-  
+
   /*** Helpers ***/
   const TAU = Math.PI*2;
   const rand = (a,b)=>Math.random()*(b-a)+a;
@@ -214,28 +214,24 @@
   /*** Input ***/
   const keys = new Set();
   const vkeys = { left:false, right:false, up:false, down:false, boost:false };
-  
   const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  
+
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     keys.add(k);
-    
-    // 타이틀 화면에서 아무 키나 누르면 시작
-    if(typeof showTitle !== 'undefined' && showTitle){
-      if(typeof startGame === 'function') {
-        startGame();
-      }
+
+    if(showTitle){
+      startGame();
       return;
     }
-    
+
     if (k === 'p') { 
       paused = !paused;
       if(paused) stopBackgroundMusic();
       else if(!gameOver && !muted) startBackgroundMusic();
     }
     if (k === 'r') reset();
-    if (k === 'm' && typeof controlMode !== 'undefined') { 
+    if (k === 'm') { 
       controlMode = (controlMode==='keys') ? 'pointer' : 'keys'; 
     }
     if (k === 'o') { 
@@ -247,88 +243,75 @@
   window.addEventListener('keyup', (e)=> keys.delete(e.key.toLowerCase()));
 
   let pointer = { x: W()*0.5, y: H()*0.5, down:false };
-  
+
+  function updatePointerFromEvent(e) {
+    let cx = e.clientX;
+    let cy = e.clientY;
+    if ((cx === undefined || cx === null) && e.touches && e.touches[0]) {
+      cx = e.touches[0].clientX;
+      cy = e.touches[0].clientY;
+    }
+    if (cx !== undefined && cx !== null) pointer.x = cx;
+    if (cy !== undefined && cy !== null) pointer.y = cy;
+  }
+
   function handlePointerMove(e) {
     e.preventDefault();
-    pointer.x = e.clientX || e.touches?.[0]?.clientX || pointer.x;
-    pointer.y = e.clientY || e.touches?.[0]?.clientY || pointer.y;
+    updatePointerFromEvent(e);
   }
-  
+
   function handlePointerDown(e) {
-    // 타이틀 화면에서 터치 시 게임 시작
-    if(typeof showTitle !== 'undefined' && showTitle){
+    if(showTitle){
       e.preventDefault();
       e.stopPropagation();
-      if(typeof startGame === 'function') {
-        startGame();
-      }
+      startGame();
       return;
     }
-    
     e.preventDefault();
     e.stopPropagation();
     pointer.down = true;
-    pointer.x = e.clientX || e.touches?.[0]?.clientX || pointer.x;
-    pointer.y = e.clientY || e.touches?.[0]?.clientY || pointer.y;
+    updatePointerFromEvent(e);
     resumeAudio();
     if(!muted && !bgMusicPlaying && !gameOver && !paused) startBackgroundMusic();
-    if(isTouch && typeof controlMode !== 'undefined') {
+    if(isTouch) {
       controlMode = 'pointer';
     }
   }
-  
+
   function handlePointerUp(e) {
     e.preventDefault();
     pointer.down = false;
   }
-  
+
   window.addEventListener('pointermove', handlePointerMove);
   window.addEventListener('pointerdown', handlePointerDown);
   window.addEventListener('pointerup', handlePointerUp);
   window.addEventListener('pointercancel', handlePointerUp);
-  
+
   window.addEventListener('touchmove', handlePointerMove, { passive: false });
   window.addEventListener('touchstart', handlePointerDown, { passive: false });
   window.addEventListener('touchend', handlePointerUp, { passive: false });
   window.addEventListener('touchcancel', handlePointerUp, { passive: false });
-  
+
   function setupTitleScreenTouch() {
     if(!canvas) return;
-    
+
     const titleTouchHandler = (e) => {
-      if(typeof showTitle === 'undefined' || !showTitle) return;
+      if(!showTitle) return;
       e.preventDefault();
       e.stopPropagation();
-      if(typeof startGame === 'function') {
-        startGame();
-      }
+      startGame();
     };
-    
+
     canvas.addEventListener('touchstart', titleTouchHandler, { passive: false });
     canvas.addEventListener('touchend', titleTouchHandler, { passive: false });
     canvas.addEventListener('click', titleTouchHandler, { passive: false });
     canvas.addEventListener('pointerdown', titleTouchHandler, { passive: false });
   }
-  
-  canvas.addEventListener('touchmove', (e) => {
-    if(typeof showTitle !== 'undefined' && showTitle) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    if(touch) {
-      pointer.x = touch.clientX;
-      pointer.y = touch.clientY;
-    }
-  }, { passive: false });
-  
-  canvas.addEventListener('touchcancel', (e) => {
-    if(typeof showTitle !== 'undefined' && showTitle) return;
-    e.preventDefault();
-    pointer.down = false;
-  }, { passive: false });
 
   /*** Mobile UI ***/
   const controlsEl = document.getElementById('controls');
-  if (isTouch && typeof controlMode !== 'undefined') {
+  if (isTouch) {
     controlsEl.classList.remove('hidden');
     controlMode = 'pointer';
   }
@@ -341,10 +324,9 @@
     controlsEl.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('.btn'); 
       if (!btn) {
-        if(isTouch && typeof controlMode !== 'undefined') {
+        if(isTouch) {
           controlMode = 'pointer';
-          pointer.x = e.clientX;
-          pointer.y = e.clientY;
+          updatePointerFromEvent(e);
           pointer.down = true;
         }
         return;
@@ -355,7 +337,7 @@
       const k = btn.dataset.k;
       if (k === 'pause') { paused = !paused; return; }
       if (k === 'reset') { reset(); return; }
-      if (k === 'toggle' && typeof controlMode !== 'undefined') { 
+      if (k === 'toggle') { 
         controlMode = (controlMode==='keys') ? 'pointer' : 'keys'; 
         return; 
       }
@@ -385,20 +367,22 @@
     controlsEl.addEventListener('pointercancel', () => { for (const k in vkeys) vkeys[k] = false; });
   }
 
-  /*** Audio (beeps & background music) ***/
+  /*** Audio ***/
   let audioCtx = null;
   let muted = false;
-  let bgMusicOsc = null;
-  let bgMusicGain = null;
   let bgMusicPlaying = false;
-  
+  let bgMusicInterval = null;
+  let bgMusicNoteIndex = 0;
+  let bgMusicBeat = 0;
+  let currentMusicLevel = 0;
+
   function resumeAudio(){
     try{
       if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if(audioCtx.state === 'suspended') audioCtx.resume();
     }catch{}
   }
-  
+
   function beep(freq=440, dur=0.06, type='sine', gain=0.06){
     if(muted) return;
     if(!audioCtx) return;
@@ -413,130 +397,111 @@
     o.start(t0); o.stop(t0 + dur);
   }
 
-  let bgMusicInterval = null;
-  let bgMusicNoteIndex = 0;
-  let bgMusicBeat = 0;
-  let currentMusicLevel = 0;
-  
   function getMusicForLevel(lv){
     const patterns = [
       { 
-        melody: [262, 294, 330, 349, 392, 440, 494, 523, 523, 494, 440, 392, 349, 330, 294, 262],
-        bass: [131, 147, 165, 175, 196, 220, 247, 262],
-        chords: [[262, 330, 392], [294, 349, 440], [330, 392, 494], [349, 392, 523]],
+        melody: [262,294,330,349,392,440,494,523,523,494,440,392,349,330,294,262],
+        bass:   [131,147,165,175,196,220,247,262],
+        chords: [[262,330,392],[294,349,440],[330,392,494],[349,392,523]],
         tempo: 350
       },
       { 
-        melody: [294, 330, 349, 392, 440, 494, 523, 587, 587, 523, 494, 440, 392, 349, 330, 294],
-        bass: [147, 165, 175, 196, 220, 247, 262, 294],
-        chords: [[294, 349, 440], [330, 392, 494], [349, 392, 523], [392, 494, 587]],
+        melody: [294,330,349,392,440,494,523,587,587,523,494,440,392,349,330,294],
+        bass:   [147,165,175,196,220,247,262,294],
+        chords: [[294,349,440],[330,392,494],[349,392,523],[392,494,587]],
         tempo: 300
       },
       { 
-        melody: [330, 349, 392, 440, 494, 523, 587, 659, 659, 587, 523, 494, 440, 392, 349, 330],
-        bass: [165, 175, 196, 220, 247, 262, 294, 330],
-        chords: [[330, 392, 494], [349, 392, 523], [392, 494, 587], [440, 523, 659]],
+        melody: [330,349,392,440,494,523,587,659,659,587,523,494,440,392,349,330],
+        bass:   [165,175,196,220,247,262,294,330],
+        chords: [[330,392,494],[349,392,523],[392,494,587],[440,523,659]],
         tempo: 280
       },
       {
-        melody: [349, 392, 440, 494, 523, 587, 659, 698, 698, 659, 587, 523, 494, 440, 392, 349],
-        bass: [175, 196, 220, 247, 262, 294, 330, 349],
-        chords: [[349, 392, 523], [392, 494, 587], [440, 523, 659], [494, 587, 698]],
+        melody: [349,392,440,494,523,587,659,698,698,659,587,523,494,440,392,349],
+        bass:   [175,196,220,247,262,294,330,349],
+        chords: [[349,392,523],[392,494,587],[440,523,659],[494,587,698]],
         tempo: 250
       }
     ];
-    
     if(lv <= 2) return patterns[0];
     if(lv <= 5) return patterns[1];
     if(lv <= 10) return patterns[2];
     return patterns[3];
   }
-  
+
   function startBackgroundMusic(){
     if(muted || bgMusicPlaying || !audioCtx) return;
-    
+
     const musicPattern = getMusicForLevel(level);
     if(currentMusicLevel !== level){
       stopBackgroundMusic();
       currentMusicLevel = level;
     }
-    
+
     try{
       resumeAudio();
       bgMusicPlaying = true;
       bgMusicNoteIndex = 0;
       bgMusicBeat = 0;
-      
+
       const melody = musicPattern.melody;
-      const bass = musicPattern.bass;
+      const bass   = musicPattern.bass;
       const chords = musicPattern.chords;
-      
+
       function playNextNote(){
         if(muted || !bgMusicPlaying || !audioCtx || currentMusicLevel !== level) {
           stopBackgroundMusic();
           return;
         }
-        
+
         const now = audioCtx.currentTime;
         const beat = bgMusicBeat % 16;
-        
+
         if(beat % 2 === 0){
           const freq = melody[bgMusicNoteIndex % melody.length];
           const o = audioCtx.createOscillator();
           const g = audioCtx.createGain();
-          
           o.type = 'sine';
           o.frequency.setValueAtTime(freq, now);
           g.gain.setValueAtTime(0.08, now);
           g.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
-          
-          o.connect(g);
-          g.connect(audioCtx.destination);
-          o.start(now);
-          o.stop(now + 0.5);
-          
+          o.connect(g); g.connect(audioCtx.destination);
+          o.start(now); o.stop(now + 0.5);
           bgMusicNoteIndex++;
         }
-        
+
         if(beat % 4 === 0){
           const bassFreq = bass[(beat / 4) % bass.length];
           const o2 = audioCtx.createOscillator();
           const g2 = audioCtx.createGain();
-          
           o2.type = 'triangle';
           o2.frequency.setValueAtTime(bassFreq, now);
           g2.gain.setValueAtTime(0.05, now);
           g2.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
-          
-          o2.connect(g2);
-          g2.connect(audioCtx.destination);
-          o2.start(now);
-          o2.stop(now + 0.6);
+          o2.connect(g2); g2.connect(audioCtx.destination);
+          o2.start(now); o2.stop(now + 0.6);
         }
-        
+
         if(beat % 8 === 0){
           const chord = chords[(beat / 8) % chords.length];
           chord.forEach((freq, i) => {
             const o3 = audioCtx.createOscillator();
             const g3 = audioCtx.createGain();
-            
             o3.type = 'sine';
             o3.frequency.setValueAtTime(freq, now + i * 0.05);
             g3.gain.setValueAtTime(0.03, now + i * 0.05);
             g3.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.05 + 0.8);
-            
-            o3.connect(g3);
-            g3.connect(audioCtx.destination);
+            o3.connect(g3); g3.connect(audioCtx.destination);
             o3.start(now + i * 0.05);
             o3.stop(now + i * 0.05 + 0.8);
           });
         }
-        
+
         bgMusicBeat++;
       }
-      
+
       playNextNote();
-      
       bgMusicInterval = setInterval(() => {
         if(!muted && bgMusicPlaying && audioCtx && currentMusicLevel === level) playNextNote();
         else stopBackgroundMusic();
@@ -545,7 +510,7 @@
       bgMusicPlaying = false;
     }
   }
-  
+
   function stopBackgroundMusic(){
     bgMusicPlaying = false;
     if(bgMusicInterval){
@@ -553,62 +518,29 @@
       bgMusicInterval = null;
     }
   }
-  
+
+  /*** Title ***/
   function drawTitle(nowT){
     if(!showTitle) return;
-    
+
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.95)';
     ctx.fillRect(0,0,W(),H());
-    
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
+
     const titleFontSize = isTouch ? Math.min(48, W() * 0.12) : 56;
-    const hintFontSize = isTouch ? Math.min(16, W() * 0.04) : 18;
-    
+    const hintFontSize  = isTouch ? Math.min(16, W() * 0.04) : 18;
+
     ctx.fillStyle = '#ffffff';
     ctx.font = `800 ${titleFontSize}px system-ui,-apple-system,Segoe UI,Roboto,sans-serif`;
-    const titleText = '착상어드벤처';
-    ctx.fillText(titleText, W()/2, H()/2 - (isTouch ? 30 : 40));
-    
+    ctx.fillText('착상어드벤처', W()/2, H()/2 - (isTouch ? 30 : 40));
+
     ctx.fillStyle = 'rgba(200,200,200,0.95)';
     ctx.font = `400 ${hintFontSize}px system-ui,-apple-system,Segoe UI,Roboto,sans-serif`;
-    const hintText = isTouch ? '화면을 터치하여 시작' : '아무 키나 눌러서 시작';
-    ctx.fillText(hintText, W()/2, H()/2 + (isTouch ? 25 : 30));
-    
+    ctx.fillText(isTouch ? '화면을 터치하여 시작' : '아무 키나 눌러서 시작',
+                 W()/2, H()/2 + (isTouch ? 25 : 30));
     ctx.restore();
-  }
-  
-  function startGame(){
-    if(!showTitle) return;
-    
-    showTitle = false;
-    paused = false;
-    gameOver = false;
-    gameT = 0;
-    score = 0;
-    level = 1;
-    invUntil = 0;
-    slowUntil = 0;
-    freezeUntil = 0;
-    ghostUntil = 0;
-    x2Until = 0;
-    slowMult = 1;
-    bannerUntil = 0;
-    spawnGraceUntil = 0;
-    particles.length = 0;
-    lastSpecialAt = -999;
-    saws = [];
-    balls = [];
-    obstacles = [];
-    initWorm();
-    applyLevel(1, 0);
-    document.getElementById('gameOverButtons').classList.add('hidden');
-    resumeAudio();
-    if(!muted) {
-      setTimeout(() => startBackgroundMusic(), 100);
-    }
   }
 
   /*** Particles ***/
@@ -654,7 +586,7 @@
     ctx.globalAlpha = 1;
   }
 
-  /*** Levels (1~100) ***/
+  /*** Levels ***/
   function makeLevel(lv){
     const i = lv-1;
     const needScore = (lv===1) ? 0 : Math.floor(3.2*i + 0.22*i*i + 2*Math.sqrt(i));
@@ -683,9 +615,6 @@
   let paused=false, gameOver=false;
   let score=0, level=1;
   let gameT=0;
-  
-  let titleUntil = 0;
-  let titleStartTime = 0;
 
   let invUntil = 0;
   let slowUntil = 0;
@@ -723,7 +652,7 @@
     }
   }
 
-  /*** Food types ***/
+  /*** Food ***/
   const FOOD = {
     normal: { name:'일반', core:'rgba(160,255,200,0.95)', glow:'rgba(100,255,160,0.95)', kind:'eat' },
     inv:    { name:'무적', core:'rgba(180,230,255,0.95)', glow:'rgba(120,190,255,0.95)', kind:'inv' },
@@ -742,15 +671,13 @@
     const roll = Math.random();
     if (!cdOK || roll > baseSpecial) return 'normal';
 
-    const wInv = 22;
-    const wSlow = 20;
-    const wFreeze = 14 + Math.floor(level/25);
-    const wGhost = 14 + Math.floor(level/30);
-    const wX2 = 16 + Math.floor(level/20);
-    const wShrink = 10;
     const bag = [
-      ['inv', wInv], ['slow', wSlow], ['freeze', wFreeze],
-      ['ghost', wGhost], ['x2', wX2], ['shrink', wShrink],
+      ['inv',    22],
+      ['slow',   20],
+      ['freeze', 14 + Math.floor(level/25)],
+      ['ghost',  14 + Math.floor(level/30)],
+      ['x2',     16 + Math.floor(level/20)],
+      ['shrink', 10],
     ];
     let sum=0; for (const [,w] of bag) sum += w;
     let r = Math.random()*sum;
@@ -786,7 +713,6 @@
     if (p===1){
       if(cfg.level === 4){
         if(Math.random() < 0.5){
-          const lanes = 1;
           const y = H()*0.5 + rand(-24,24);
           const h = rand(18, 26) * sizeReduction;
           const gapW = rand(140, 240);
@@ -880,7 +806,6 @@
     } else if (p===4){
       if(cfg.level === 4){
         if(Math.random() < 0.5){
-          const rows = 1;
           const y = H()*0.5 + rand(-18,18);
           const h = rand(16, 24) * sizeReduction;
           const gapW = rand(150, 260);
@@ -1028,22 +953,17 @@
       });
     }
   }
-  
   function updateSaws(dt, nowT){
     if(level < 3) return;
-    
     for(const saw of saws){
       saw.spawnT += dt;
       saw.rotation += saw.rotationSpeed * dt * 60;
-      
       saw.x += saw.vx * dt;
       saw.y += saw.vy * dt;
-      
       if(saw.x < saw.r){ saw.x = saw.r; saw.vx *= -1; }
       if(saw.x > W()-saw.r){ saw.x = W()-saw.r; saw.vx *= -1; }
       if(saw.y < saw.r){ saw.y = saw.r; saw.vy *= -1; }
       if(saw.y > H()-saw.r){ saw.y = H()-saw.r; saw.vy *= -1; }
-      
       for(const o of obstacles){
         if(circleRectCollide(saw.x, saw.y, saw.r, o.x, o.y, o.w, o.h)){
           reflectBallOnRect(saw, o);
@@ -1051,20 +971,16 @@
       }
     }
   }
-  
   function checkDeathBySaws(nowT){
     if(level < 3) return false;
     const inv = nowT < invUntil;
     const grace = nowT < spawnGraceUntil;
     if(inv || grace) return false;
-    
     const headR = worm.radius;
     const bodyR = Math.max(3.5, worm.radius-2.5);
-    
     for(const saw of saws){
       const hitR = headR + saw.r - 2;
       if(dist2(worm.x, worm.y, saw.x, saw.y) <= hitR*hitR) return true;
-      
       const hitBR = bodyR + saw.r - 2;
       const hitBR2 = hitBR*hitBR;
       for(let i=10;i<worm.points.length;i+=2){
@@ -1074,27 +990,21 @@
     }
     return false;
   }
-  
   function drawSaws(nowT){
     if(level < 3) return;
-    
     for(const saw of saws){
       const t = clamp(saw.spawnT / 0.6, 0, 1);
       const ease = t*t*(3-2*t);
       const alpha = 0.4 + 0.6*ease;
-      
       ctx.save();
       ctx.translate(saw.x, saw.y);
       ctx.rotate(saw.rotation);
-      
       const teeth = 8;
       const outerR = saw.r;
       const innerR = saw.r * 0.6;
-      
-      ctx.fillStyle = `rgba(255,100,100,${alpha})`;
-      ctx.strokeStyle = `rgba(255,150,150,${alpha})`;
+      ctx.fillStyle = 'rgba(255,100,100,'+alpha+')';
+      ctx.strokeStyle = 'rgba(255,150,150,'+alpha+')';
       ctx.lineWidth = 2;
-      
       ctx.beginPath();
       for(let i=0;i<teeth*2;i++){
         const angle = (i * Math.PI) / teeth;
@@ -1107,34 +1017,29 @@
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      
-      ctx.fillStyle = `rgba(200,50,50,${alpha})`;
+      ctx.fillStyle = 'rgba(200,50,50,'+alpha+')';
       ctx.beginPath();
       ctx.arc(0, 0, innerR * 0.5, 0, TAU);
       ctx.fill();
-      
       ctx.restore();
     }
   }
 
-  /*** Place food ***/
+  /*** Food placement ***/
   function placeFood(){
     const margin=24;
     for(let tries=0; tries<700; tries++){
       const fx = rand(margin, W()-margin);
       const fy = rand(margin, H()-margin);
-
       let bad=false;
       for(const o of obstacles){
         if(circleRectCollide(fx,fy, food.r+10, o.x,o.y,o.w,o.h)){ bad=true; break; }
       }
       if(bad) continue;
-
       for(const b of balls){
         if(dist2(fx,fy,b.x,b.y) < (b.r+food.r*2)**2){ bad=true; break; }
       }
       if(bad) continue;
-
       if(dist2(fx,fy,worm.x,worm.y) < (90+food.r)**2) continue;
       food.x=fx; food.y=fy;
       return;
@@ -1147,32 +1052,23 @@
     level = lv;
     const cfg = LEVELS[lv-1];
     buildObstaclesForLevel(cfg);
-
     worm.baseSpeed = 230 + cfg.wormSpeedBonus;
-    worm.maxSpeed = 560 + Math.min(120, cfg.wormSpeedBonus);
+    worm.maxSpeed  = 560 + Math.min(120, cfg.wormSpeedBonus);
     worm.speed = clamp(worm.speed, 170, worm.maxSpeed);
-
     const baseLength = 13;
     const levelBonus = Math.floor((level-1) * 0.5);
-    const targetLen = baseLength + levelBonus;
-    if(worm.targetLength < targetLen) {
-      worm.targetLength = targetLen;
-    }
-
+    const targetLen  = baseLength + levelBonus;
+    if(worm.targetLength < targetLen) worm.targetLength = targetLen;
     initBalls(cfg);
     for(const b of balls) b.spawnT = 0;
-    
     initSaws(cfg);
     for(const saw of saws) saw.spawnT = 0;
-
     bannerUntil = nowT + 1.1;
     spawnGraceUntil = nowT + 0.75;
-
     food.type = chooseNextFoodType(nowT);
     placeFood();
     beep(520,0.07,'square',0.04);
     beep(660,0.07,'square',0.03);
-    
     stopBackgroundMusic();
     currentMusicLevel = level;
     if(!muted && !paused && !gameOver) {
@@ -1180,7 +1076,7 @@
     }
   }
 
-  /*** Reset ***/
+  /*** Reset / startGame ***/
   function reset(){
     paused=false; gameOver=false;
     score=0; level=1; gameT=0;
@@ -1190,7 +1086,6 @@
     particles.length=0;
     lastSpecialAt=-999;
     showTitle=true;
-    titleUntil=2.0;
     saws=[];
     initWorm();
     applyLevel(1, 0);
@@ -1211,38 +1106,38 @@
     document.getElementById('gameOverButtons').classList.add('hidden');
     if(!muted) startBackgroundMusic();
   }
-  
-  paused = false;
-  showTitle = true;
-  titleUntil = 2.0;
-  gameT = 0;
-  titleStartTime = performance.now() / 1000;
-  
-  score = 0;
-  level = 1;
-  gameOver = false;
-  invUntil = 0;
-  slowUntil = 0;
-  freezeUntil = 0;
-  ghostUntil = 0;
-  x2Until = 0;
-  slowMult = 1;
-  bannerUntil = 0;
-  spawnGraceUntil = 0;
-  particles = [];
-  lastSpecialAt = -999;
-  saws = [];
-  balls = [];
-  obstacles = [];
-  
-  function initialRender() {
-    if(typeof drawBackground === 'function' && typeof drawTitle === 'function') {
-      drawBackground();
-      drawTitle(0);
+
+  function startGame(){
+    if(!showTitle) return;
+    showTitle = false;
+    paused = false;
+    gameOver = false;
+    gameT = 0;
+    score = 0;
+    level = 1;
+    invUntil = 0;
+    slowUntil = 0;
+    freezeUntil = 0;
+    ghostUntil = 0;
+    x2Until = 0;
+    slowMult = 1;
+    bannerUntil = 0;
+    spawnGraceUntil = 0;
+    particles.length = 0;
+    lastSpecialAt = -999;
+    saws = [];
+    balls = [];
+    obstacles = [];
+    initWorm();
+    applyLevel(1, 0);
+    document.getElementById('gameOverButtons').classList.add('hidden');
+    resumeAudio();
+    if(!muted) {
+      setTimeout(() => startBackgroundMusic(), 100);
     }
   }
 
-  /*** Effect activation ***/
+  /*** Effects ***/
   function activateFood(type, nowT){
     if (type==='inv'){
       invUntil = Math.max(invUntil, nowT + 3.2);
@@ -1283,7 +1178,7 @@
     const up    = keys.has('arrowup')   || keys.has('w') || vkeys.up;
     const down  = keys.has('arrowdown') || keys.has('s') || vkeys.down;
 
-    if(typeof controlMode !== 'undefined' && controlMode==='pointer'){
+    if(controlMode==='pointer'){
       worm.desiredHeading = angleTo(worm.x,worm.y, pointer.x,pointer.y);
       const boost = pointer.down || vkeys.boost;
       const targetSpeed = clamp(worm.baseSpeed + (boost?160:0), 170, worm.maxSpeed);
@@ -1293,7 +1188,6 @@
       if(left) turn -= 1;
       if(right) turn += 1;
       worm.desiredHeading = worm.desiredHeading + turn*worm.turnSpeed*dt;
-
       const boost = (up || vkeys.boost) ? 1 : 0;
       const brake = down ? 1 : 0;
       const targetSpeed = clamp(worm.speed + (boost-brake)*175*dt, 170, worm.maxSpeed);
@@ -1309,8 +1203,8 @@
 
     const inv = nowT < invUntil;
     const ghost = nowT < ghostUntil;
-
     const pad=6;
+
     if(worm.x<pad || worm.x>W()-pad || worm.y<pad || worm.y>H()-pad){
       if(worm.x < pad) { worm.x = pad; worm.heading = Math.PI - worm.heading; }
       if(worm.x > W()-pad) { worm.x = W()-pad; worm.heading = Math.PI - worm.heading; }
@@ -1370,23 +1264,19 @@
 
     for(const b of balls){
       b.spawnT += dt;
-
       if(!frozen){
         b.x += b.vx*dt;
         b.y += b.vy*dt;
-
         if(b.x < b.r){ b.x=b.r; b.vx*=-1; }
         if(b.x > W()-b.r){ b.x=W()-b.r; b.vx*=-1; }
         if(b.y < b.r){ b.y=b.r; b.vy*=-1; }
         if(b.y > H()-b.r){ b.y=H()-b.r; b.vy*=-1; }
-
         for(const o of obstacles){
           if(circleRectCollide(b.x,b.y,b.r,o.x,o.y,o.w,o.h)){
             reflectBallOnRect(b,o);
           }
         }
       }
-
       const s = hypot(b.vx,b.vy) || 1;
       const target = frozen ? 0 : (b.speed * slowMult);
       if (target === 0){
@@ -1409,7 +1299,6 @@
             const push=(rr-d)*0.5;
             a.x -= nx*push; a.y -= ny*push;
             b.x += nx*push; b.y += ny*push;
-
             const avn = a.vx*nx + a.vy*ny;
             const bvn = b.vx*nx + b.vy*ny;
             const delta = bvn - avn;
@@ -1421,19 +1310,16 @@
     }
   }
 
-  /*** Eat & level up ***/
+  /*** Eat / level up ***/
   function checkEat(nowT){
     const eatR = worm.radius + food.r + 2;
     if(dist2(worm.x,worm.y,food.x,food.y) <= eatR*eatR){
       const add = (nowT < x2Until) ? 2 : 1;
       score += add;
-
       const nextLv = levelForScore(score);
       const cfg = LEVELS[nextLv-1];
-
       const growthBonus = Math.floor((level-1) * 0.15);
       worm.targetLength += cfg.growthPerEat + growthBonus;
-
       for(const b of balls){
         b.speed += cfg.ballSpeedUpPerEat;
         if (nowT >= freezeUntil){
@@ -1443,9 +1329,7 @@
           b.vy = Math.sin(ang) * s;
         }
       }
-
       activateFood(food.type, nowT);
-
       if(nextLv !== level){
         applyLevel(nextLv, nowT);
       } else {
@@ -1455,19 +1339,16 @@
     }
   }
 
-  /*** Death by balls ***/
+  /*** Death ***/
   function checkDeathByBalls(nowT){
     const inv = nowT < invUntil;
     const grace = nowT < spawnGraceUntil;
     if(inv || grace) return false;
-
     const headR = worm.radius;
     const bodyR = Math.max(3.5, worm.radius-2.5);
-
     for(const b of balls){
       const hitR = headR + b.r - 1;
       if(dist2(worm.x,worm.y,b.x,b.y) <= hitR*hitR) return true;
-
       const hitBR = bodyR + b.r - 1;
       const hitBR2 = hitBR*hitBR;
       for(let i=10;i<worm.points.length;i+=2){
@@ -1508,7 +1389,7 @@
     const f = FOOD[food.type] || FOOD.normal;
     const g=ctx.createRadialGradient(food.x,food.y,1, food.x,food.y, food.r*4);
     g.addColorStop(0, f.glow);
-    g.addColorStop(1, f.glow.replace('0.95','0.0').replace('0.9','0.0'));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle=g;
     ctx.beginPath(); ctx.arc(food.x,food.y, food.r*4, 0, TAU); ctx.fill();
     ctx.fillStyle=f.core;
@@ -1527,14 +1408,12 @@
       const alpha = 0.35 + 0.65*ease;
       const scale = 0.65 + 0.35*ease;
       const rr = b.r*scale;
-
       const g = ctx.createRadialGradient(b.x-rr*0.35,b.y-rr*0.35,2, b.x,b.y, rr*2.2);
-      g.addColorStop(0, `rgba(255,90,90,${alpha})`);
-      g.addColorStop(1, `rgba(255,90,90,0.0)`);
+      g.addColorStop(0, 'rgba(255,90,90,'+alpha+')');
+      g.addColorStop(1, 'rgba(255,90,90,0)');
       ctx.fillStyle=g;
       ctx.beginPath(); ctx.arc(b.x,b.y, rr*2.2, 0, TAU); ctx.fill();
-
-      ctx.fillStyle = frozen ? `rgba(180,220,255,${alpha})` : `rgba(255,120,120,${alpha})`;
+      ctx.fillStyle = frozen ? 'rgba(180,220,255,'+alpha+')' : 'rgba(255,120,120,'+alpha+')';
       ctx.beginPath(); ctx.arc(b.x,b.y, rr, 0, TAU); ctx.fill();
     }
   }
@@ -1544,10 +1423,8 @@
     const inv = nowT < invUntil;
     const ghost = nowT < ghostUntil;
     const base=worm.radius;
-
     ctx.lineCap='round';
     ctx.lineJoin='round';
-
     for(let pass=0; pass<2; pass++){
       ctx.beginPath();
       ctx.moveTo(pts[0].x,pts[0].y);
@@ -1558,19 +1435,16 @@
         ctx.quadraticCurveTo(cx,cy,nx,ny);
       }
       ctx.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
-
       let s0 = pass===0 ? 'rgba(120,190,255,0.55)' : 'rgba(180,230,255,0.88)';
-      if(inv) s0 = pass===0 ? 'rgba(120,190,255,0.55)' : 'rgba(200,240,255,0.95)';
+      if(inv)   s0 = pass===0 ? 'rgba(120,190,255,0.55)' : 'rgba(200,240,255,0.95)';
       if(ghost) s0 = pass===0 ? 'rgba(220,220,220,0.35)' : 'rgba(245,245,245,0.70)';
-
       ctx.strokeStyle = s0;
       ctx.lineWidth = pass===0 ? base*2.6 : base*1.9;
       ctx.stroke();
     }
-
-    ctx.fillStyle = ghost ? 'rgba(245,245,245,0.85)' : (inv ? 'rgba(220,250,255,0.98)' : 'rgba(220,245,255,0.95)');
+    ctx.fillStyle = ghost ? 'rgba(245,245,245,0.85)' :
+                     (inv ? 'rgba(220,250,255,0.98)' : 'rgba(220,245,255,0.95)');
     ctx.beginPath(); ctx.arc(worm.x,worm.y, base*0.72, 0, TAU); ctx.fill();
-
     ctx.fillStyle='rgba(0,0,0,0.6)';
     ctx.beginPath();
     ctx.arc(
@@ -1598,13 +1472,11 @@
     ctx.globalAlpha = 0.85 * a;
     ctx.fillStyle='rgba(0,0,0,0.35)';
     ctx.fillRect(0, H()*0.28, W(), H()*0.16);
-
     ctx.textAlign='center';
     ctx.textBaseline='middle';
     ctx.fillStyle='#fff';
     ctx.font='800 44px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     ctx.fillText(`LEVEL ${level}`, W()/2, H()*0.36);
-
     ctx.fillStyle='rgba(200,200,200,0.95)';
     ctx.font='500 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     const cfg=LEVELS[level-1];
@@ -1618,20 +1490,16 @@
     ctx.fillRect(0,0,W(),H());
     ctx.textAlign='center';
     ctx.textBaseline='middle';
-
     ctx.fillStyle='#fff';
     ctx.font='800 44px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     ctx.fillText('GAME OVER', W()/2, H()/2 - 100);
-
     ctx.fillStyle='#d0d0d0';
     ctx.font='400 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     ctx.fillText(`점수: ${score} | 레벨: ${level}/100`, W()/2, H()/2 - 60);
-
     ctx.fillStyle='#9aa0a6';
     ctx.font='400 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     ctx.fillText(`사망: 공/벽/장애물/자기몸통 충돌 (무적=면역, 고스트=장애물/몸통 통과)`, W()/2, H()/2 - 40);
     ctx.restore();
-    
     const btnContainer = document.getElementById('gameOverButtons');
     if(btnContainer && !btnContainer.classList.contains('hidden')){
       btnContainer.style.zIndex = '1000';
@@ -1642,9 +1510,8 @@
     const hud=document.getElementById('hud');
     const cfg=LEVELS[level-1];
     const len=worm.targetLength;
-    const maxBallSpeed = Math.round(Math.max(...balls.map(b=>b.speed)) * ((nowT<freezeUntil)?0:slowMult));
-    const mode = (typeof controlMode !== 'undefined' && controlMode==='pointer') ? '마우스/터치' : '키보드';
-
+    const maxBallSpeed = balls.length ? Math.round(Math.max(...balls.map(b=>b.speed)) * ((nowT<freezeUntil)?0:slowMult)) : 0;
+    const mode = controlMode==='pointer' ? '마우스/터치' : '키보드';
     const left = (t)=>Math.max(0, t-nowT);
     const invL = left(invUntil), slowL = left(slowUntil), frzL = left(freezeUntil), ghoL = left(ghostUntil), x2L = left(x2Until);
     const eff = [];
@@ -1653,7 +1520,6 @@
     if(slowL>0) eff.push(`슬로우 ${slowL.toFixed(1)}s`);
     if(frzL>0) eff.push(`프리즈 ${frzL.toFixed(1)}s`);
     if(x2L>0) eff.push(`2배 ${x2L.toFixed(1)}s`);
-
     hud.innerHTML =
       `<b>점수</b>: ${score} &nbsp; | &nbsp; <b>레벨</b>: ${level}/100` +
       ` &nbsp; | &nbsp; <b>길이</b>: ${len}` +
@@ -1666,69 +1532,62 @@
       (muted ? ` &nbsp; | &nbsp; <b>MUTED</b>` : '');
   }
 
-  const retryBtn = document.getElementById('retryBtn');
+  /*** Buttons ***/
+  const retryBtn   = document.getElementById('retryBtn');
   const restartBtn = document.getElementById('restartBtn');
-  
+
   function handleRetry(e) {
     e.preventDefault();
     e.stopPropagation();
     retryCurrentLevel();
   }
-  
   function handleRestart(e) {
     e.preventDefault();
     e.stopPropagation();
     reset();
   }
-  
-  retryBtn.addEventListener('click', handleRetry);
-  restartBtn.addEventListener('click', handleRestart);
-  
-  retryBtn.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    retryBtn.style.transform = 'scale(0.95)';
-  }, { passive: false });
-  
-  retryBtn.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    retryBtn.style.transform = '';
-    retryCurrentLevel();
-  }, { passive: false });
-  
-  restartBtn.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    restartBtn.style.transform = 'scale(0.95)';
-  }, { passive: false });
-  
-  restartBtn.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    restartBtn.style.transform = '';
-    reset();
-  }, { passive: false });
-  
-  retryBtn.addEventListener('pointerdown', handleRetry);
-  restartBtn.addEventListener('pointerdown', handleRestart);
 
-  /*** Main loop ***/
-  initialRender();
-  setTimeout(initialRender, 100);
+  if (retryBtn && restartBtn){
+    retryBtn.addEventListener('click', handleRetry);
+    restartBtn.addEventListener('click', handleRestart);
+
+    retryBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      retryBtn.style.transform = 'scale(0.95)';
+    }, { passive: false });
+    retryBtn.addEventListener('touchend', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      retryBtn.style.transform = '';
+      retryCurrentLevel();
+    }, { passive: false });
+
+    restartBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      restartBtn.style.transform = 'scale(0.95)';
+    }, { passive: false });
+    restartBtn.addEventListener('touchend', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      restartBtn.style.transform = '';
+      reset();
+    }, { passive: false });
+
+    retryBtn.addEventListener('pointerdown', handleRetry);
+    restartBtn.addEventListener('pointerdown', handleRestart);
+  }
+
+  /*** Initial state & loop ***/
+  function initialRender() {
+    drawBackground();
+    drawTitle(0);
+  }
+
   setupTitleScreenTouch();
   setupMobileControls();
-  if(document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      setupTitleScreenTouch();
-      setupMobileControls();
-    });
-  }
-  setTimeout(() => {
-    setupTitleScreenTouch();
-    setupMobileControls();
-  }, 100);
-  
+  initWorm();
+  applyLevel(1, 0);
+  showTitle = true;
+  initialRender();
+
   let last = performance.now();
   function frame(now){
     const dt = clamp((now-last)/1000, 0, 0.033);
@@ -1745,7 +1604,6 @@
       checkEat(gameT);
       if(!gameOver && checkDeathByBalls(gameT)) die();
       if(!gameOver && checkDeathBySaws(gameT)) die();
-      
       if(!muted && !bgMusicPlaying && gameT > 0.5) startBackgroundMusic();
     }
 
@@ -1761,9 +1619,7 @@
       drawBanner(gameT);
       updateHud(gameT);
     }
-    
     drawTitle(gameT);
-
     if(gameOver) drawGameOver();
     requestAnimationFrame(frame);
   }
@@ -1771,10 +1627,10 @@
 })();
 </script>
 
-<!-- Service Worker 등록 -->
+<!-- Service Worker 등록 (파일 프로토콜이면 실패해도 게임에는 영향 없음) -->
 <script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js");
+  if ("serviceWorker" in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register("./sw.js").catch(function(){});
   }
 </script>
 </body>
