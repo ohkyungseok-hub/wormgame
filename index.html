@@ -84,9 +84,21 @@
 
     /* Game Over Buttons */
     .game-over-buttons{
-      position:fixed; left:50%; top:50%; transform:translate(-50%, -50%);
-      z-index:30; display:flex; flex-direction:column; gap:16px;
-      pointer-events:auto; margin-top:80px;
+      position:fixed !important; 
+      left:50% !important; 
+      top:50% !important; 
+      transform:translate(-50%, -50%) !important;
+      z-index:10000 !important; 
+      display:flex !important; 
+      flex-direction:column; 
+      gap:16px;
+      pointer-events:auto !important; 
+      margin-top:80px;
+      touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .game-over-buttons.hidden{
+      display:none !important;
     }
     .game-btn{
       padding:14px 32px; border-radius:12px;
@@ -98,14 +110,19 @@
       box-shadow:0 8px 24px rgba(0,0,0,0.4);
       transition:all 0.2s;
       pointer-events:auto;
+      touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent;
+      min-width:200px;
+      text-align:center;
     }
     .game-btn:hover{ background:rgba(255,255,255,0.18); border-color:rgba(255,255,255,0.35); transform:translateY(-1px); }
-    .game-btn:active{ transform:translateY(0px) scale(0.98); background:rgba(255,255,255,0.15); }
+    .game-btn:active{ transform:translateY(0px) scale(0.95); background:rgba(255,255,255,0.2); }
     .retry-btn{ background:rgba(120,255,170,0.2); border-color:rgba(120,255,170,0.4); }
     .retry-btn:hover{ background:rgba(120,255,170,0.28); border-color:rgba(120,255,170,0.5); }
+    .retry-btn:active{ background:rgba(120,255,170,0.35); }
     @media (max-width: 480px) {
-      .game-btn { padding:12px 24px; font-size:14px; }
-      .game-over-buttons { margin-top:60px; gap:12px; }
+      .game-btn { padding:14px 28px; font-size:15px; min-width:180px; }
+      .game-over-buttons { margin-top:60px; gap:14px; }
     }
   </style>
 </head>
@@ -1646,23 +1663,30 @@
   }
   function drawGameOver(){
     ctx.save();
-    ctx.fillStyle='rgba(0,0,0,0.55)';
+    ctx.fillStyle='rgba(0,0,0,0.7)';
     ctx.fillRect(0,0,W(),H());
     ctx.textAlign='center';
     ctx.textBaseline='middle';
 
     ctx.fillStyle='#fff';
     ctx.font='800 44px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    ctx.fillText('GAME OVER', W()/2, H()/2 - 80);
+    ctx.fillText('GAME OVER', W()/2, H()/2 - 100);
 
     ctx.fillStyle='#d0d0d0';
     ctx.font='400 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    ctx.fillText(`점수: ${score} | 레벨: ${level}/100`, W()/2, H()/2 - 40);
+    ctx.fillText(`점수: ${score} | 레벨: ${level}/100`, W()/2, H()/2 - 60);
 
     ctx.fillStyle='#9aa0a6';
     ctx.font='400 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    ctx.fillText(`사망: 공/벽/장애물/자기몸통 충돌 (무적=면역, 고스트=장애물/몸통 통과)`, W()/2, H()/2 - 20);
+    ctx.fillText(`사망: 공/벽/장애물/자기몸통 충돌 (무적=면역, 고스트=장애물/몸통 통과)`, W()/2, H()/2 - 40);
     ctx.restore();
+    
+    // 버튼이 확실히 보이도록 z-index 확인
+    const btnContainer = document.getElementById('gameOverButtons');
+    if(btnContainer && !btnContainer.classList.contains('hidden')){
+      btnContainer.style.zIndex = '1000';
+      btnContainer.style.pointerEvents = 'auto';
+    }
   }
   function updateHud(nowT){
     const hud=document.getElementById('hud');
@@ -1692,9 +1716,56 @@
       (muted ? ` &nbsp; | &nbsp; <b>MUTED</b>` : '');
   }
 
-  // 게임 오버 버튼 이벤트
-  document.getElementById('retryBtn').addEventListener('click', retryCurrentLevel);
-  document.getElementById('restartBtn').addEventListener('click', reset);
+  // 게임 오버 버튼 이벤트 (클릭 + 터치 모두 지원)
+  const retryBtn = document.getElementById('retryBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  
+  function handleRetry(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    retryCurrentLevel();
+  }
+  
+  function handleRestart(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    reset();
+  }
+  
+  // 클릭 이벤트
+  retryBtn.addEventListener('click', handleRetry);
+  restartBtn.addEventListener('click', handleRestart);
+  
+  // 터치 이벤트 (모바일용)
+  retryBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    retryBtn.style.transform = 'scale(0.95)';
+  }, { passive: false });
+  
+  retryBtn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    retryBtn.style.transform = '';
+    retryCurrentLevel();
+  }, { passive: false });
+  
+  restartBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    restartBtn.style.transform = 'scale(0.95)';
+  }, { passive: false });
+  
+  restartBtn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    restartBtn.style.transform = '';
+    reset();
+  }, { passive: false });
+  
+  // 포인터 이벤트도 추가
+  retryBtn.addEventListener('pointerdown', handleRetry);
+  restartBtn.addEventListener('pointerdown', handleRestart);
 
   /*** Main loop ***/
   let last = performance.now();
