@@ -12,46 +12,101 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
 
   <style>
-    html, body { margin:0; height:100%; background:#000; overflow:hidden; touch-action:none; }
-    canvas { display:block; width:100vw; height:100vh; }
+    html, body { margin:0; height:100%; background:#000; overflow:hidden; touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+    canvas { display:block; width:100vw; height:100vh; touch-action:none; }
     .hud{
       position:fixed; left:12px; top:10px; z-index:10;
-      color:#d8d8d8; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      color:#d8d8d8; font:13px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
       user-select:none; opacity:.95; text-shadow:0 1px 0 rgba(0,0,0,.7);
       pointer-events:none;
+      max-width:calc(100vw - 24px);
+      word-break:break-word;
+    }
+    @media (max-width: 480px) {
+      .hud { font-size:11px; left:8px; top:8px; }
     }
     .hud b{ color:#fff; }
     .hint{
       position:fixed; left:12px; bottom:10px; z-index:10;
-      color:#9aa0a6; font:12px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      color:#9aa0a6; font:11px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
       user-select:none; text-shadow:0 1px 0 rgba(0,0,0,.7);
       pointer-events:none;
+      max-width:calc(100vw - 24px);
+    }
+    @media (max-width: 480px) {
+      .hint { font-size:10px; left:8px; bottom:8px; }
     }
 
     /* Mobile controls */
     .controls{
       position:fixed; inset:0; z-index:20; pointer-events:none;
       display:flex; align-items:flex-end; justify-content:space-between;
-      padding:18px;
+      padding:12px;
     }
-    .pad, .actions{ pointer-events:none; display:flex; gap:10px; align-items:flex-end; }
-    .dpad{ display:grid; grid-template-columns:58px 58px 58px; grid-template-rows:58px 58px; gap:10px; pointer-events:auto; }
+    @media (max-width: 480px) {
+      .controls { padding:8px; }
+    }
+    .pad, .actions{ pointer-events:none; display:flex; gap:8px; align-items:flex-end; }
+    @media (max-width: 480px) {
+      .pad, .actions { gap:6px; }
+    }
+    .dpad{ display:grid; grid-template-columns:52px 52px 52px; grid-template-rows:52px 52px; gap:8px; pointer-events:auto; }
+    @media (max-width: 480px) {
+      .dpad { grid-template-columns:48px 48px 48px; grid-template-rows:48px 48px; gap:6px; }
+    }
     .btn{
-      width:58px; height:58px; border-radius:16px;
-      background:rgba(255,255,255,0.08);
-      border:1px solid rgba(255,255,255,0.14);
-      box-shadow:0 8px 24px rgba(0,0,0,0.35);
+      width:52px; height:52px; border-radius:14px;
+      background:rgba(255,255,255,0.1);
+      border:1px solid rgba(255,255,255,0.18);
+      box-shadow:0 6px 20px rgba(0,0,0,0.4);
       display:flex; align-items:center; justify-content:center;
-      color:rgba(255,255,255,0.85);
-      font:700 16px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      color:rgba(255,255,255,0.9);
+      font:700 15px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
       user-select:none; -webkit-user-select:none;
       pointer-events:auto;
-      backdrop-filter: blur(6px);
+      backdrop-filter: blur(8px);
+      -webkit-tap-highlight-color:transparent;
+      touch-action:manipulation;
     }
-    .btn:active{ transform: translateY(1px); background:rgba(255,255,255,0.12); }
-    .actions .btn{ width:84px; height:84px; border-radius:22px; font-size:14px; }
-    .actions .btn.small{ width:58px; height:58px; border-radius:16px; font-size:12px; }
+    @media (max-width: 480px) {
+      .btn { width:48px; height:48px; border-radius:12px; font-size:14px; }
+    }
+    .btn:active{ transform: translateY(1px) scale(0.95); background:rgba(255,255,255,0.15); }
+    .actions .btn{ width:76px; height:76px; border-radius:20px; font-size:13px; }
+    @media (max-width: 480px) {
+      .actions .btn { width:64px; height:64px; border-radius:18px; font-size:12px; }
+    }
+    .actions .btn.small{ width:52px; height:52px; border-radius:14px; font-size:11px; }
+    @media (max-width: 480px) {
+      .actions .btn.small { width:48px; height:48px; border-radius:12px; font-size:10px; }
+    }
     .hidden{ display:none !important; }
+
+    /* Game Over Buttons */
+    .game-over-buttons{
+      position:fixed; left:50%; top:50%; transform:translate(-50%, -50%);
+      z-index:30; display:flex; flex-direction:column; gap:16px;
+      pointer-events:auto; margin-top:80px;
+    }
+    .game-btn{
+      padding:14px 32px; border-radius:12px;
+      background:rgba(255,255,255,0.12);
+      border:2px solid rgba(255,255,255,0.25);
+      color:#fff; font:700 16px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      cursor:pointer; user-select:none; -webkit-user-select:none;
+      backdrop-filter: blur(8px);
+      box-shadow:0 8px 24px rgba(0,0,0,0.4);
+      transition:all 0.2s;
+      pointer-events:auto;
+    }
+    .game-btn:hover{ background:rgba(255,255,255,0.18); border-color:rgba(255,255,255,0.35); transform:translateY(-1px); }
+    .game-btn:active{ transform:translateY(0px) scale(0.98); background:rgba(255,255,255,0.15); }
+    .retry-btn{ background:rgba(120,255,170,0.2); border-color:rgba(120,255,170,0.4); }
+    .retry-btn:hover{ background:rgba(120,255,170,0.28); border-color:rgba(120,255,170,0.5); }
+    @media (max-width: 480px) {
+      .game-btn { padding:12px 24px; font-size:14px; }
+      .game-over-buttons { margin-top:60px; gap:12px; }
+    }
   </style>
 </head>
 <body>
@@ -78,6 +133,11 @@
       <div class="btn small" data-k="mute">MUTE</div>
       <div class="btn small" data-k="reset">RESET</div>
     </div>
+  </div>
+
+  <div class="game-over-buttons hidden" id="gameOverButtons">
+    <button class="game-btn retry-btn" id="retryBtn">현재 레벨 재도전</button>
+    <button class="game-btn restart-btn" id="restartBtn">처음부터 시작</button>
   </div>
 
 <script>
@@ -137,16 +197,40 @@
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     keys.add(k);
-    if (k === 'p') paused = !paused;
+    
+    // 타이틀 화면에서 아무 키나 누르면 시작
+    if(showTitle){
+      showTitle = false;
+      paused = false;
+      gameT = 0;
+      if(!muted) startBackgroundMusic();
+      return;
+    }
+    
+    if (k === 'p') { 
+      paused = !paused;
+      if(paused) stopBackgroundMusic();
+      else if(!gameOver && !muted) startBackgroundMusic();
+    }
     if (k === 'r') reset();
     if (k === 'm') controlMode = (controlMode==='keys') ? 'pointer' : 'keys';
-    if (k === 'o') muted = !muted;
+    if (k === 'o') { 
+      muted = !muted;
+      if(muted) stopBackgroundMusic();
+      else if(!gameOver && !paused) startBackgroundMusic();
+    }
   });
   window.addEventListener('keyup', (e)=> keys.delete(e.key.toLowerCase()));
 
   let pointer = { x: W()*0.5, y: H()*0.5, down:false };
   window.addEventListener('pointermove', (e)=> { pointer.x = e.clientX; pointer.y = e.clientY; });
-  window.addEventListener('pointerdown', (e)=> { pointer.down = true; pointer.x = e.clientX; pointer.y = e.clientY; resumeAudio(); });
+  window.addEventListener('pointerdown', (e)=> { 
+    pointer.down = true; 
+    pointer.x = e.clientX; 
+    pointer.y = e.clientY; 
+    resumeAudio();
+    if(!muted && !bgMusicPlaying && !gameOver && !paused) startBackgroundMusic();
+  });
   window.addEventListener('pointerup', ()=> { pointer.down = false; });
 
   /*** Mobile UI ***/
@@ -163,7 +247,12 @@
     if (k === 'pause') { paused = !paused; return; }
     if (k === 'reset') { reset(); return; }
     if (k === 'toggle') { controlMode = (controlMode==='keys') ? 'pointer' : 'keys'; return; }
-    if (k === 'mute') { muted = !muted; return; }
+    if (k === 'mute') { 
+      muted = !muted;
+      if(muted) stopBackgroundMusic();
+      else if(!gameOver && !paused) startBackgroundMusic();
+      return;
+    }
     if (k === 'left') setVKey('left', true);
     if (k === 'right') setVKey('right', true);
     if (k === 'up') setVKey('up', true);
@@ -183,15 +272,20 @@
   });
   controlsEl.addEventListener('pointercancel', () => { for (const k in vkeys) vkeys[k] = false; });
 
-  /*** Audio (beeps) ***/
+  /*** Audio (beeps & background music) ***/
   let audioCtx = null;
   let muted = false;
+  let bgMusicOsc = null;
+  let bgMusicGain = null;
+  let bgMusicPlaying = false;
+  
   function resumeAudio(){
     try{
       if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if(audioCtx.state === 'suspended') audioCtx.resume();
     }catch{}
   }
+  
   function beep(freq=440, dur=0.06, type='sine', gain=0.06){
     if(muted) return;
     if(!audioCtx) return;
@@ -204,6 +298,180 @@
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(audioCtx.destination);
     o.start(t0); o.stop(t0 + dur);
+  }
+
+  // 배경음악 생성 (레벨별로 다른 음악)
+  let bgMusicInterval = null;
+  let bgMusicNoteIndex = 0;
+  let bgMusicBeat = 0;
+  let currentMusicLevel = 0;
+  
+  function getMusicForLevel(lv){
+    // 레벨별로 다른 음악 패턴
+    const patterns = [
+      { // 레벨 1-2: 부드러운 멜로디
+        melody: [262, 294, 330, 349, 392, 440, 494, 523, 523, 494, 440, 392, 349, 330, 294, 262],
+        bass: [131, 147, 165, 175, 196, 220, 247, 262],
+        chords: [[262, 330, 392], [294, 349, 440], [330, 392, 494], [349, 392, 523]],
+        tempo: 350
+      },
+      { // 레벨 3-5: 조금 더 빠른 템포
+        melody: [294, 330, 349, 392, 440, 494, 523, 587, 587, 523, 494, 440, 392, 349, 330, 294],
+        bass: [147, 165, 175, 196, 220, 247, 262, 294],
+        chords: [[294, 349, 440], [330, 392, 494], [349, 392, 523], [392, 494, 587]],
+        tempo: 300
+      },
+      { // 레벨 6-10: 더 긴장감 있는 음악
+        melody: [330, 349, 392, 440, 494, 523, 587, 659, 659, 587, 523, 494, 440, 392, 349, 330],
+        bass: [165, 175, 196, 220, 247, 262, 294, 330],
+        chords: [[330, 392, 494], [349, 392, 523], [392, 494, 587], [440, 523, 659]],
+        tempo: 280
+      },
+      { // 레벨 11+: 매우 빠른 템포
+        melody: [349, 392, 440, 494, 523, 587, 659, 698, 698, 659, 587, 523, 494, 440, 392, 349],
+        bass: [175, 196, 220, 247, 262, 294, 330, 349],
+        chords: [[349, 392, 523], [392, 494, 587], [440, 523, 659], [494, 587, 698]],
+        tempo: 250
+      }
+    ];
+    
+    if(lv <= 2) return patterns[0];
+    if(lv <= 5) return patterns[1];
+    if(lv <= 10) return patterns[2];
+    return patterns[3];
+  }
+  
+  function startBackgroundMusic(){
+    if(muted || bgMusicPlaying || !audioCtx) return;
+    
+    // 레벨이 바뀌면 음악도 바꿈
+    const musicPattern = getMusicForLevel(level);
+    if(currentMusicLevel !== level){
+      stopBackgroundMusic();
+      currentMusicLevel = level;
+    }
+    
+    try{
+      resumeAudio();
+      bgMusicPlaying = true;
+      bgMusicNoteIndex = 0;
+      bgMusicBeat = 0;
+      
+      const melody = musicPattern.melody;
+      const bass = musicPattern.bass;
+      const chords = musicPattern.chords;
+      
+      function playNextNote(){
+        if(muted || !bgMusicPlaying || !audioCtx || currentMusicLevel !== level) {
+          stopBackgroundMusic();
+          return;
+        }
+        
+        const now = audioCtx.currentTime;
+        const beat = bgMusicBeat % 16;
+        
+        // 메인 멜로디
+        if(beat % 2 === 0){
+          const freq = melody[bgMusicNoteIndex % melody.length];
+          const o = audioCtx.createOscillator();
+          const g = audioCtx.createGain();
+          
+          o.type = 'sine';
+          o.frequency.setValueAtTime(freq, now);
+          g.gain.setValueAtTime(0.08, now);
+          g.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+          
+          o.connect(g);
+          g.connect(audioCtx.destination);
+          o.start(now);
+          o.stop(now + 0.5);
+          
+          bgMusicNoteIndex++;
+        }
+        
+        // 베이스 라인
+        if(beat % 4 === 0){
+          const bassFreq = bass[(beat / 4) % bass.length];
+          const o2 = audioCtx.createOscillator();
+          const g2 = audioCtx.createGain();
+          
+          o2.type = 'triangle';
+          o2.frequency.setValueAtTime(bassFreq, now);
+          g2.gain.setValueAtTime(0.05, now);
+          g2.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+          
+          o2.connect(g2);
+          g2.connect(audioCtx.destination);
+          o2.start(now);
+          o2.stop(now + 0.6);
+        }
+        
+        // 화음
+        if(beat % 8 === 0){
+          const chord = chords[(beat / 8) % chords.length];
+          chord.forEach((freq, i) => {
+            const o3 = audioCtx.createOscillator();
+            const g3 = audioCtx.createGain();
+            
+            o3.type = 'sine';
+            o3.frequency.setValueAtTime(freq, now + i * 0.05);
+            g3.gain.setValueAtTime(0.03, now + i * 0.05);
+            g3.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.05 + 0.8);
+            
+            o3.connect(g3);
+            g3.connect(audioCtx.destination);
+            o3.start(now + i * 0.05);
+            o3.stop(now + i * 0.05 + 0.8);
+          });
+        }
+        
+        bgMusicBeat++;
+      }
+      
+      playNextNote();
+      
+      bgMusicInterval = setInterval(() => {
+        if(!muted && bgMusicPlaying && audioCtx && currentMusicLevel === level) playNextNote();
+        else stopBackgroundMusic();
+      }, musicPattern.tempo);
+    }catch(e){
+      bgMusicPlaying = false;
+    }
+  }
+  
+  function stopBackgroundMusic(){
+    bgMusicPlaying = false;
+    if(bgMusicInterval){
+      clearInterval(bgMusicInterval);
+      bgMusicInterval = null;
+    }
+  }
+  
+  // 타이틀 화면
+  let showTitle = true;
+  let titleUntil = 0;
+  
+  function drawTitle(nowT){
+    if(!showTitle) return;
+    
+    const fade = nowT < 0.3 ? nowT / 0.3 : 1;
+    
+    ctx.save();
+    ctx.fillStyle = `rgba(0,0,0,${0.8 * fade})`;
+    ctx.fillRect(0,0,W(),H());
+    
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    ctx.fillStyle = `rgba(255,255,255,${fade})`;
+    ctx.font = '800 56px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillText('시험관 착상 시키기', W()/2, H()/2 - 40);
+    
+    ctx.fillStyle = `rgba(200,200,200,${fade * 0.8})`;
+    ctx.font = '400 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillText('아무 키나 눌러서 시작', W()/2, H()/2 + 30);
+    
+    ctx.restore();
   }
 
   /*** Particles ***/
@@ -253,13 +521,17 @@
   function makeLevel(lv){
     const i = lv-1;
     const needScore = (lv===1) ? 0 : Math.floor(3.2*i + 0.22*i*i + 2*Math.sqrt(i));
-    const balls = clamp(1 + Math.floor(i/10) + Math.floor(i/20), 1, 8);
-    const ballBaseSpeed = 210 + i*6.5;
-    const ballSpeedUpPerEat = 8 + Math.floor(i/12);
-    const obstacles = clamp(1 + Math.floor(i/4), 1, 28);
-    const obstacleSize = clamp(110 + i*1.3, 110, 240);
-    const growthPerEat = 6 + Math.floor(i/15);
-    const wormSpeedBonus = Math.min(140, i*1.8);
+    // 첫판부터 쉽게: 공 개수 증가를 더 천천히
+    const balls = clamp(Math.floor(i/15) + Math.floor(i/25), 0, 8);
+    // 첫판부터 쉽게: 공 속도 증가를 더 천천히
+    const ballBaseSpeed = 180 + i*4.5;
+    const ballSpeedUpPerEat = 6 + Math.floor(i/15);
+    // 첫판부터 쉽게: 장애물 개수 증가를 더 천천히
+    const obstacles = clamp(Math.floor(i/6), 0, 28);
+    // 장애물 크기를 천천히 증가: 레벨 1=70, 레벨 2=72, 레벨 10=78 정도로 부드럽게
+    const obstacleSize = clamp(70 + i*0.4, 70, 240);
+    const growthPerEat = 4 + Math.floor(i/18);
+    const wormSpeedBonus = Math.min(140, i*1.5);
     const pattern = i % 6;
     return { level:lv, needScore, balls, ballBaseSpeed, ballSpeedUpPerEat, obstacles, obstacleSize, growthPerEat, wormSpeedBonus, pattern };
   }
@@ -301,7 +573,7 @@
     radius:8,
     segmentSpacing:8,
     points:[],
-    targetLength:26
+    targetLength:13  // 반으로 줄임 (26 -> 13)
   };
   function initWorm(){
     worm.x=W()*0.25; worm.y=H()*0.5;
@@ -309,7 +581,10 @@
     worm.baseSpeed=230; worm.speed=worm.baseSpeed; worm.maxSpeed=560;
     worm.radius=8;
     worm.segmentSpacing=8;
-    worm.targetLength=26;
+    // 레벨에 따라 초기 길이 설정 (레벨 1=13, 레벨 10=18, 레벨 20=23 정도)
+    const baseLength = 13;
+    const levelBonus = Math.floor((level-1) * 0.5);
+    worm.targetLength = baseLength + levelBonus;
     worm.points=[];
     for(let i=0;i<worm.targetLength;i++){
       worm.points.push({x: worm.x - i*worm.segmentSpacing, y: worm.y});
@@ -326,7 +601,7 @@
     x2:     { name:'2배', core:'rgba(255,235,170,0.95)', glow:'rgba(255,215,120,0.95)', kind:'x2' },
     shrink: { name:'수축', core:'rgba(210,255,190,0.95)', glow:'rgba(180,255,140,0.95)', kind:'shrink' },
   };
-  const food = { x:0, y:0, r:6, type:'normal' };
+  const food = { x:0, y:0, r:18, type:'normal' };  // 3배로 증가 (6 -> 18)
 
   let lastSpecialAt = -999;
   function chooseNextFoodType(nowT){
@@ -361,44 +636,65 @@
   function buildObstaclesForLevel(cfg){
     obstacles=[];
     const pad=28;
-    const base=cfg.obstacleSize;
+    // 레벨 2, 3에서 장애물 크기를 10% 수준으로 줄임
+    // 레벨 4부터는 레벨 4 기준의 10% 수준으로 줄임
+    let sizeReduction;
+    if(cfg.level === 2 || cfg.level === 3) {
+      sizeReduction = 0.1;
+    } else if(cfg.level >= 4) {
+      // 레벨 4 기준의 10% = 레벨 4의 기본 크기 * 0.1
+      const level4Base = 70 + 3*0.4; // 레벨 4의 기본 크기
+      sizeReduction = (level4Base * 0.1) / cfg.obstacleSize;
+    } else {
+      sizeReduction = cfg.level <= 5 ? 0.5 : 1.0;
+    }
+    const base=cfg.obstacleSize * sizeReduction;
     const spawnSafe = { x:W()*0.25, y:H()*0.5, r:240 };
     const avoidSpawn = (x,y,w,h)=> dist2(x+w/2,y+h/2, spawnSafe.x,spawnSafe.y) < spawnSafe.r*spawnSafe.r;
     const p = cfg.pattern;
+    // 레벨 2, 3, 4 이상에서 벽 생성 확률을 줄임
+    const wallChance = (cfg.level === 2 || cfg.level === 3) ? 0.1 : (cfg.level >= 4 ? 0.1 : 1.0);
 
     if (p===1){
-      const lanes = 2 + Math.min(4, Math.floor(cfg.level/20));
+      const lanes = (cfg.level === 2 || cfg.level === 3) ? 1 : (2 + Math.min(4, Math.floor(cfg.level/20)));
       for(let i=0;i<lanes;i++){
+        if((cfg.level === 2 || cfg.level === 3) && Math.random() > wallChance) continue;
         const y = (H()/(lanes+1))*(i+1) + rand(-24,24);
-        const h = rand(18, 26);
+        const h = rand(18, 26) * sizeReduction;
         const gapW = rand(140, 240);
         const gapX = rand(W()*0.35, W()*0.75);
         addRect(pad, y, Math.max(0, gapX-pad), h);
         addRect(gapX+gapW, y, Math.max(0, W()-pad-(gapX+gapW)), h);
       }
     } else if (p===2){
-      const cw = rand(18, 30);
-      const ch = rand(18, 30);
-      addRect(W()*0.5 - cw/2, pad, cw, H()-pad*2);
-      addRect(pad, H()*0.5 - ch/2, W()-pad*2, ch);
-      const extra = Math.max(0, cfg.obstacles-2);
+      if((cfg.level === 2 || cfg.level === 3) && Math.random() > wallChance) {
+        // 레벨 2, 3에서는 크로스 벽을 생성하지 않거나 매우 작게
+      } else {
+        const cw = rand(18, 30) * sizeReduction;
+        const ch = rand(18, 30) * sizeReduction;
+        addRect(W()*0.5 - cw/2, pad, cw, H()-pad*2);
+        addRect(pad, H()*0.5 - ch/2, W()-pad*2, ch);
+      }
+      const extra = (cfg.level === 2 || cfg.level === 3) ? 0 : Math.max(0, cfg.obstacles-2);
       for(let k=0;k<extra;k++){
-        const w = rand(base*0.5, base*0.9);
-        const h = rand(base*0.5, base*0.9);
+        // 초기 레벨에서 장애물 크기를 더 작게
+        const sizeMult = level <= 5 ? 0.35 : (level <= 10 ? 0.45 : 0.5);
+        const w = rand(base*sizeMult, base*(sizeMult+0.3));
+        const h = rand(base*sizeMult, base*(sizeMult+0.3));
         const x = rand(pad, W()-pad-w);
         const y = rand(pad, H()-pad-h);
         if(avoidSpawn(x,y,w,h)) { k--; continue; }
         addRect(x,y,w,h);
       }
     } else if (p===3){
-      const cols = clamp(6 + Math.floor(cfg.level/18), 6, 10);
-      const rows = clamp(4 + Math.floor(cfg.level/26), 4, 8);
+      const cols = (cfg.level === 2 || cfg.level === 3) ? 4 : clamp(6 + Math.floor(cfg.level/18), 6, 10);
+      const rows = (cfg.level === 2 || cfg.level === 3) ? 3 : clamp(4 + Math.floor(cfg.level/26), 4, 8);
       const cellW = (W()-pad*2)/cols;
       const cellH = (H()-pad*2)/rows;
-      const thick = rand(14, 20);
+      const thick = rand(14, 20) * sizeReduction;
 
       for(let c=1;c<cols;c++){
-        if(Math.random() < 0.12) continue;
+        if(Math.random() < ((cfg.level === 2 || cfg.level === 3) ? 0.7 : 0.12)) continue; // 레벨 2, 3에서는 70% 확률로 벽 생성 안함
         const x = pad + c*cellW - thick/2;
         const gapRow = Math.floor(rand(0, rows));
         for(let r=0;r<rows;r++){
@@ -408,7 +704,7 @@
         }
       }
       for(let r=1;r<rows;r++){
-        if(Math.random() < 0.12) continue;
+        if(Math.random() < ((cfg.level === 2 || cfg.level === 3) ? 0.7 : 0.12)) continue; // 레벨 2, 3에서는 70% 확률로 벽 생성 안함
         const y = pad + r*cellH - thick/2;
         const gapCol = Math.floor(rand(0, cols));
         for(let c=0;c<cols;c++){
@@ -419,43 +715,65 @@
       }
       obstacles = obstacles.filter(o => !avoidSpawn(o.x,o.y,o.w,o.h));
     } else if (p===4){
-      const rows = 3 + Math.min(3, Math.floor(cfg.level/25));
+      const rows = (cfg.level === 2 || cfg.level === 3) ? 1 : (3 + Math.min(3, Math.floor(cfg.level/25)));
       for(let i=0;i<rows;i++){
+        if((cfg.level === 2 || cfg.level === 3) && Math.random() > wallChance) continue;
         const y = (H()/(rows+1))*(i+1) + rand(-18,18);
-        const h = rand(16, 24);
+        const h = rand(16, 24) * sizeReduction;
         const gapW = rand(150, 260);
         const gapX = (i%2===0) ? rand(W()*0.25, W()*0.55) : rand(W()*0.45, W()*0.75);
         addRect(pad, y, Math.max(0, gapX-pad), h);
         addRect(gapX+gapW, y, Math.max(0, W()-pad-(gapX+gapW)), h);
       }
     } else if (p===5){
-      const thick = rand(18, 26);
-      const rw = W()*0.55, rh = H()*0.45;
-      const rx = W()*0.5 - rw/2, ry = H()*0.5 - rh/2;
-      const gapTopX = rand(rx+rw*0.2, rx+rw*0.65);
-      const gapBotX = rand(rx+rw*0.25, rx+rw*0.7);
-      addRect(rx, ry, Math.max(0, gapTopX-rx), thick);
-      addRect(gapTopX+rw*0.18, ry, Math.max(0, rx+rw-(gapTopX+rw*0.18)), thick);
-      addRect(rx, ry+rh-thick, Math.max(0, gapBotX-rx), thick);
-      addRect(gapBotX+rw*0.18, ry+rh-thick, Math.max(0, rx+rw-(gapBotX+rw*0.18)), thick);
-      addRect(rx, ry, thick, rh);
-      addRect(rx+rw-thick, ry, thick, rh);
+      if((cfg.level === 2 || cfg.level === 3) && Math.random() > wallChance) {
+        // 레벨 2, 3에서는 링 벽을 생성하지 않거나 매우 작게
+      } else {
+        const thick = rand(18, 26) * sizeReduction;
+        const rw = W()*0.55, rh = H()*0.45;
+        const rx = W()*0.5 - rw/2, ry = H()*0.5 - rh/2;
+        const gapTopX = rand(rx+rw*0.2, rx+rw*0.65);
+        const gapBotX = rand(rx+rw*0.25, rx+rw*0.7);
+        addRect(rx, ry, Math.max(0, gapTopX-rx), thick);
+        addRect(gapTopX+rw*0.18, ry, Math.max(0, rx+rw-(gapTopX+rw*0.18)), thick);
+        addRect(rx, ry+rh-thick, Math.max(0, gapBotX-rx), thick);
+        addRect(gapBotX+rw*0.18, ry+rh-thick, Math.max(0, rx+rw-(gapBotX+rw*0.18)), thick);
+        addRect(rx, ry, thick, rh);
+        addRect(rx+rw-thick, ry, thick, rh);
+      }
 
-      const extra = Math.max(0, cfg.obstacles-6);
+      const extra = (cfg.level === 2 || cfg.level === 3) ? 0 : Math.max(0, cfg.obstacles-6);
       for(let k=0;k<extra;k++){
-        const w = rand(base*0.45, base*0.85);
-        const h = rand(base*0.45, base*0.85);
+        // 초기 레벨에서 장애물 크기를 더 작게
+        const sizeMult = level <= 5 ? 0.3 : (level <= 10 ? 0.4 : 0.45);
+        const w = rand(base*sizeMult, base*(sizeMult+0.35));
+        const h = rand(base*sizeMult, base*(sizeMult+0.35));
         const x = rand(pad, W()-pad-w);
         const y = rand(pad, H()-pad-h);
         if(avoidSpawn(x,y,w,h)) { k--; continue; }
         addRect(x,y,w,h);
       }
     } else {
-      const count = cfg.obstacles;
+      // 레벨 2, 3에서는 장애물 개수를 10% 수준으로 줄임
+      // 레벨 4 이상에서는 레벨 4 기준의 10% 수준으로 줄임
+      let count;
+      if(cfg.level === 2 || cfg.level === 3) {
+        count = Math.max(0, Math.floor(cfg.obstacles * 0.1));
+      } else if(cfg.level >= 4) {
+        const level4Obstacles = Math.floor(3/6); // 레벨 4의 장애물 개수
+        count = Math.max(0, Math.floor(level4Obstacles * 0.1));
+      } else {
+        count = cfg.obstacles;
+      }
+      // 초기 레벨에서 장애물 크기를 더 작게
+      const sizeMult1 = level <= 5 ? 0.4 : (level <= 10 ? 0.6 : 0.9);
+      const sizeMult2 = level <= 5 ? 0.6 : (level <= 10 ? 0.8 : 1.1);
+      const sizeMult3 = level <= 5 ? 0.5 : (level <= 10 ? 0.7 : 1.0);
+      const sizeMult4 = level <= 5 ? 0.7 : (level <= 10 ? 0.9 : 1.3);
       for(let k=0;k<count;k++){
         const long = Math.random()<0.5;
-        const w = long ? rand(base*0.9, base*1.6) : rand(base*0.6, base*1.1);
-        const h = long ? rand(base*0.6, base*1.1) : rand(base*0.9, base*1.6);
+        const w = long ? rand(base*sizeMult1, base*sizeMult4) : rand(base*sizeMult2, base*sizeMult3);
+        const h = long ? rand(base*sizeMult2, base*sizeMult3) : rand(base*sizeMult1, base*sizeMult4);
         let placed=false;
         for(let tries=0; tries<260; tries++){
           const x = rand(pad, W()-pad-w);
@@ -498,6 +816,124 @@
     }
   }
 
+  /*** 톱니 바퀴 악당 (레벨 3 이상) ***/
+  let saws = [];
+  function initSaws(cfg){
+    saws = [];
+    if(cfg.level < 3) return;
+    
+    const count = Math.min(2 + Math.floor((cfg.level - 3) / 5), 6);
+    for(let i=0;i<count;i++){
+      const r = 16 + Math.min(8, i);
+      const ang = rand(0, TAU);
+      const speed = 120 + (cfg.level - 3) * 8;
+      saws.push({
+        x: W()*rand(0.3,0.9),
+        y: H()*rand(0.2,0.8),
+        r,
+        speed,
+        angle: ang,
+        rotation: 0,
+        rotationSpeed: rand(2, 4),
+        vx: Math.cos(ang)*speed,
+        vy: Math.sin(ang)*speed,
+        spawnT: 0
+      });
+    }
+  }
+  
+  function updateSaws(dt, nowT){
+    if(level < 3) return;
+    
+    for(const saw of saws){
+      saw.spawnT += dt;
+      saw.rotation += saw.rotationSpeed * dt * 60;
+      
+      saw.x += saw.vx * dt;
+      saw.y += saw.vy * dt;
+      
+      // 벽에 부딪히면 반사
+      if(saw.x < saw.r){ saw.x = saw.r; saw.vx *= -1; }
+      if(saw.x > W()-saw.r){ saw.x = W()-saw.r; saw.vx *= -1; }
+      if(saw.y < saw.r){ saw.y = saw.r; saw.vy *= -1; }
+      if(saw.y > H()-saw.r){ saw.y = H()-saw.r; saw.vy *= -1; }
+      
+      // 장애물과 충돌 처리
+      for(const o of obstacles){
+        if(circleRectCollide(saw.x, saw.y, saw.r, o.x, o.y, o.w, o.h)){
+          reflectBallOnRect(saw, o);
+        }
+      }
+    }
+  }
+  
+  function checkDeathBySaws(nowT){
+    if(level < 3) return false;
+    const inv = nowT < invUntil;
+    const grace = nowT < spawnGraceUntil;
+    if(inv || grace) return false;
+    
+    const headR = worm.radius;
+    const bodyR = Math.max(3.5, worm.radius-2.5);
+    
+    for(const saw of saws){
+      const hitR = headR + saw.r - 2;
+      if(dist2(worm.x, worm.y, saw.x, saw.y) <= hitR*hitR) return true;
+      
+      const hitBR = bodyR + saw.r - 2;
+      const hitBR2 = hitBR*hitBR;
+      for(let i=10;i<worm.points.length;i+=2){
+        const p=worm.points[i];
+        if(dist2(p.x, p.y, saw.x, saw.y) <= hitBR2) return true;
+      }
+    }
+    return false;
+  }
+  
+  function drawSaws(nowT){
+    if(level < 3) return;
+    
+    for(const saw of saws){
+      const t = clamp(saw.spawnT / 0.6, 0, 1);
+      const ease = t*t*(3-2*t);
+      const alpha = 0.4 + 0.6*ease;
+      
+      ctx.save();
+      ctx.translate(saw.x, saw.y);
+      ctx.rotate(saw.rotation);
+      
+      // 톱니 바퀴 그리기
+      const teeth = 8;
+      const outerR = saw.r;
+      const innerR = saw.r * 0.6;
+      
+      ctx.fillStyle = `rgba(255,100,100,${alpha})`;
+      ctx.strokeStyle = `rgba(255,150,150,${alpha})`;
+      ctx.lineWidth = 2;
+      
+      ctx.beginPath();
+      for(let i=0;i<teeth*2;i++){
+        const angle = (i * Math.PI) / teeth;
+        const r = (i % 2 === 0) ? outerR : innerR;
+        const x = Math.cos(angle) * r;
+        const y = Math.sin(angle) * r;
+        if(i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      // 중심 원
+      ctx.fillStyle = `rgba(200,50,50,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, innerR * 0.5, 0, TAU);
+      ctx.fill();
+      
+      ctx.restore();
+    }
+  }
+
   /*** Place food ***/
   function placeFood(){
     const margin=24;
@@ -512,11 +948,11 @@
       if(bad) continue;
 
       for(const b of balls){
-        if(dist2(fx,fy,b.x,b.y) < (b.r+60)**2){ bad=true; break; }
+        if(dist2(fx,fy,b.x,b.y) < (b.r+food.r*2)**2){ bad=true; break; }
       }
       if(bad) continue;
 
-      if(dist2(fx,fy,worm.x,worm.y) < 90**2) continue;
+      if(dist2(fx,fy,worm.x,worm.y) < (90+food.r)**2) continue;
       food.x=fx; food.y=fy;
       return;
     }
@@ -533,8 +969,20 @@
     worm.maxSpeed = 560 + Math.min(120, cfg.wormSpeedBonus);
     worm.speed = clamp(worm.speed, 170, worm.maxSpeed);
 
+    // 레벨에 따라 지렁이 길이 조정
+    const baseLength = 13;
+    const levelBonus = Math.floor((level-1) * 0.5);
+    const targetLen = baseLength + levelBonus;
+    if(worm.targetLength < targetLen) {
+      worm.targetLength = targetLen;
+    }
+
     initBalls(cfg);
     for(const b of balls) b.spawnT = 0;
+    
+    // 레벨 3 이상에서 톱니 바퀴 초기화
+    initSaws(cfg);
+    for(const saw of saws) saw.spawnT = 0;
 
     bannerUntil = nowT + 1.1;
     spawnGraceUntil = nowT + 0.75;
@@ -543,6 +991,13 @@
     placeFood();
     beep(520,0.07,'square',0.04);
     beep(660,0.07,'square',0.03);
+    
+    // 레벨이 바뀌면 음악도 바꿈
+    stopBackgroundMusic();
+    currentMusicLevel = level;
+    if(!muted && !paused && !gameOver) {
+      setTimeout(() => startBackgroundMusic(), 100);
+    }
   }
 
   /*** Reset ***/
@@ -554,9 +1009,34 @@
     bannerUntil=0; spawnGraceUntil=0;
     particles.length=0;
     lastSpecialAt=-999;
+    showTitle=true;
+    titleUntil=2.0;
+    saws=[];
     initWorm();
     applyLevel(1, 0);
+    document.getElementById('gameOverButtons').classList.add('hidden');
+    stopBackgroundMusic();
   }
+
+  // 현재 레벨에서 재도전
+  function retryCurrentLevel(){
+    paused=false; gameOver=false;
+    gameT=0;
+    invUntil=0; slowUntil=0; freezeUntil=0; ghostUntil=0; x2Until=0;
+    slowMult=1;
+    bannerUntil=0; spawnGraceUntil=0;
+    particles.length=0;
+    lastSpecialAt=-999;
+    initWorm();
+    applyLevel(level, 0);
+    document.getElementById('gameOverButtons').classList.add('hidden');
+    if(!muted) startBackgroundMusic();
+  }
+  
+  // 초기화 (타이틀 화면 표시)
+  paused=true;
+  showTitle=true;
+  titleUntil=2.0;
   reset();
 
   /*** Effect activation ***/
@@ -628,8 +1108,14 @@
     const ghost = nowT < ghostUntil;
 
     const pad=6;
-    if(!inv && (worm.x<pad || worm.x>W()-pad || worm.y<pad || worm.y>H()-pad)){
-      die(); return;
+    if(worm.x<pad || worm.x>W()-pad || worm.y<pad || worm.y>H()-pad){
+      // 벽에 부딪히면 방향 전환
+      if(worm.x < pad) { worm.x = pad; worm.heading = Math.PI - worm.heading; }
+      if(worm.x > W()-pad) { worm.x = W()-pad; worm.heading = Math.PI - worm.heading; }
+      if(worm.y < pad) { worm.y = pad; worm.heading = -worm.heading; }
+      if(worm.y > H()-pad) { worm.y = H()-pad; worm.heading = -worm.heading; }
+      worm.desiredHeading = worm.heading;
+      beep(300,0.05,'square',0.03);
     }
 
     if(!inv && !ghost){
@@ -743,7 +1229,9 @@
       const nextLv = levelForScore(score);
       const cfg = LEVELS[nextLv-1];
 
-      worm.targetLength += cfg.growthPerEat;
+      // 레벨에 따라 성장량 증가 (레벨이 높을수록 더 많이 자람)
+      const growthBonus = Math.floor((level-1) * 0.15);
+      worm.targetLength += cfg.growthPerEat + growthBonus;
 
       for(const b of balls){
         b.speed += cfg.ballSpeedUpPerEat;
@@ -792,9 +1280,11 @@
   function die(){
     if(gameOver) return;
     gameOver = true;
+    stopBackgroundMusic();
     spawnParticles(worm.x,worm.y, 56, 340, 0.8, 'hit');
     beep(170,0.12,'sawtooth',0.07);
     beep(110,0.16,'sawtooth',0.05);
+    document.getElementById('gameOverButtons').classList.remove('hidden');
   }
 
   /*** Rendering ***/
@@ -930,15 +1420,15 @@
 
     ctx.fillStyle='#fff';
     ctx.font='800 44px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    ctx.fillText('GAME OVER', W()/2, H()/2 - 42);
+    ctx.fillText('GAME OVER', W()/2, H()/2 - 80);
 
     ctx.fillStyle='#d0d0d0';
     ctx.font='400 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    ctx.fillText(`점수: ${score} | 레벨: ${level}/100  (R 키로 재시작)`, W()/2, H()/2 + 6);
+    ctx.fillText(`점수: ${score} | 레벨: ${level}/100`, W()/2, H()/2 - 40);
 
     ctx.fillStyle='#9aa0a6';
     ctx.font='400 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    ctx.fillText(`사망: 공/벽/장애물/자기몸통 충돌 (무적=면역, 고스트=장애물/몸통 통과)`, W()/2, H()/2 + 34);
+    ctx.fillText(`사망: 공/벽/장애물/자기몸통 충돌 (무적=면역, 고스트=장애물/몸통 통과)`, W()/2, H()/2 - 20);
     ctx.restore();
   }
   function updateHud(nowT){
@@ -969,30 +1459,46 @@
       (muted ? ` &nbsp; | &nbsp; <b>MUTED</b>` : '');
   }
 
+  // 게임 오버 버튼 이벤트
+  document.getElementById('retryBtn').addEventListener('click', retryCurrentLevel);
+  document.getElementById('restartBtn').addEventListener('click', reset);
+
   /*** Main loop ***/
   let last = performance.now();
   function frame(now){
     const dt = clamp((now-last)/1000, 0, 0.033);
     last = now;
 
-    if(!paused && !gameOver){
+    if(!paused && !gameOver && !showTitle){
       gameT += dt;
       updateWorm(dt, gameT);
       updateBalls(dt, gameT);
+      updateSaws(dt, gameT);
       updateParticles(dt);
       checkEat(gameT);
       if(!gameOver && checkDeathByBalls(gameT)) die();
+      if(!gameOver && checkDeathBySaws(gameT)) die();
+      
+      // 배경음악 시작 (게임 시작 후)
+      if(!muted && !bgMusicPlaying && gameT > 0.5) startBackgroundMusic();
+    } else if(showTitle){
+      gameT += dt;
     }
 
     drawBackground();
-    drawObstacles();
-    drawFood();
-    drawBalls(gameT);
-    drawWorm(gameT);
-    drawParticles();
-    drawPointerHint();
-    drawBanner(gameT);
-    updateHud(gameT);
+    if(!showTitle){
+      drawObstacles();
+      drawFood();
+      drawBalls(gameT);
+      drawSaws(gameT);
+      drawWorm(gameT);
+      drawParticles();
+      drawPointerHint();
+      drawBanner(gameT);
+      updateHud(gameT);
+    }
+    
+    drawTitle(gameT);
 
     if(gameOver) drawGameOver();
     requestAnimationFrame(frame);
