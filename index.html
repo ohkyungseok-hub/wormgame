@@ -625,6 +625,7 @@
 
   let bannerUntil = 0;
   let spawnGraceUntil = 0;
+  let levelTransitionUntil = 0;
 
   /*** Worm ***/
   const worm = {
@@ -708,7 +709,7 @@
     const spawnSafe = { x:W()*0.25, y:H()*0.5, r:240 };
     const avoidSpawn = (x,y,w,h)=> dist2(x+w/2,y+h/2, spawnSafe.x,spawnSafe.y) < spawnSafe.r*spawnSafe.r;
     const p = cfg.pattern;
-    const wallChance = (cfg.level === 2 || cfg.level === 3) ? 0.1 : (cfg.level >= 4 ? 0.1 : 1.0);
+    const wallChance = cfg.level === 2 ? 0.1 : (cfg.level === 3 ? 0.5 : (cfg.level >= 4 ? 0.1 : 1.0));
 
     if (p===1){
       if(cfg.level === 4){
@@ -723,7 +724,8 @@
       } else {
         const lanes = (cfg.level === 2 || cfg.level === 3) ? 1 : (2 + Math.min(4, Math.floor(cfg.level/20)));
         for(let i=0;i<lanes;i++){
-          if((cfg.level === 2 || cfg.level === 3) && Math.random() > wallChance) continue;
+          if(cfg.level === 2 && Math.random() > wallChance) continue;
+          if(cfg.level === 3 && Math.random() > wallChance) continue;
           const y = (H()/(lanes+1))*(i+1) + rand(-24,24);
           const h = rand(18, 26) * sizeReduction;
           const gapW = rand(140, 240);
@@ -743,7 +745,8 @@
             addRect(pad, H()*0.5 - ch/2, W()-pad*2, ch);
           }
         }
-      } else if((cfg.level === 2 || cfg.level === 3) && Math.random() > wallChance) {
+      } else if(cfg.level === 2 && Math.random() > wallChance) {
+      } else if(cfg.level === 3 && Math.random() > wallChance) {
       } else {
         const cw = rand(18, 30) * sizeReduction;
         const ch = rand(18, 30) * sizeReduction;
@@ -782,7 +785,9 @@
         const thick = rand(14, 20) * sizeReduction;
 
         for(let c=1;c<cols;c++){
-          if(Math.random() < ((cfg.level === 2 || cfg.level === 3) ? 0.7 : 0.12)) continue;
+          if(cfg.level === 2 && Math.random() < 0.7) continue;
+          if(cfg.level === 3 && Math.random() < 0.5) continue;
+          if(cfg.level > 3 && Math.random() < 0.12) continue;
           const x = pad + c*cellW - thick/2;
           const gapRow = Math.floor(rand(0, rows));
           for(let r=0;r<rows;r++){
@@ -792,7 +797,9 @@
           }
         }
         for(let r=1;r<rows;r++){
-          if(Math.random() < ((cfg.level === 2 || cfg.level === 3) ? 0.7 : 0.12)) continue;
+          if(cfg.level === 2 && Math.random() < 0.7) continue;
+          if(cfg.level === 3 && Math.random() < 0.5) continue;
+          if(cfg.level > 3 && Math.random() < 0.12) continue;
           const y = pad + r*cellH - thick/2;
           const gapCol = Math.floor(rand(0, cols));
           for(let c=0;c<cols;c++){
@@ -816,7 +823,8 @@
       } else {
         const rows = (cfg.level === 2 || cfg.level === 3) ? 1 : (3 + Math.min(3, Math.floor(cfg.level/25)));
         for(let i=0;i<rows;i++){
-          if((cfg.level === 2 || cfg.level === 3) && Math.random() > wallChance) continue;
+          if(cfg.level === 2 && Math.random() > wallChance) continue;
+          if(cfg.level === 3 && Math.random() > wallChance) continue;
           const y = (H()/(rows+1))*(i+1) + rand(-18,18);
           const h = rand(16, 24) * sizeReduction;
           const gapW = rand(150, 260);
@@ -841,7 +849,8 @@
           ];
           walls[Math.floor(Math.random() * walls.length)]();
         }
-      } else if((cfg.level === 2 || cfg.level === 3) && Math.random() > wallChance) {
+      } else if(cfg.level === 2 && Math.random() > wallChance) {
+      } else if(cfg.level === 3 && Math.random() > wallChance) {
       } else {
         const thick = rand(18, 26) * sizeReduction;
         const rw = W()*0.55, rh = H()*0.45;
@@ -934,7 +943,7 @@
     saws = [];
     if(cfg.level < 3) return;
     
-    const count = Math.min(2 + Math.floor((cfg.level - 3) / 5), 6);
+    const count = cfg.level === 3 ? 1 : Math.min(2 + Math.floor((cfg.level - 3) / 5), 6);
     for(let i=0;i<count;i++){
       const r = 16 + Math.min(8, i);
       const ang = rand(0, TAU);
@@ -1049,16 +1058,32 @@
 
   /*** Apply level ***/
   function applyLevel(lv, nowT){
+    // 레벨 전환 시 화면 전환 효과 시작
+    if(lv !== level && level > 1){
+      levelTransitionUntil = nowT + 0.5;
+    }
+    
     level = lv;
     const cfg = LEVELS[lv-1];
     buildObstaclesForLevel(cfg);
     worm.baseSpeed = 230 + cfg.wormSpeedBonus;
     worm.maxSpeed  = 560 + Math.min(120, cfg.wormSpeedBonus);
     worm.speed = clamp(worm.speed, 170, worm.maxSpeed);
+    
+    // 레벨 전환 시 꼬리 길이 리셋
     const baseLength = 13;
     const levelBonus = Math.floor((level-1) * 0.5);
     const targetLen  = baseLength + levelBonus;
-    if(worm.targetLength < targetLen) worm.targetLength = targetLen;
+    worm.targetLength = targetLen;
+    
+    // 지렁이 포인트 배열도 리셋
+    const currentHeadX = worm.points[0]?.x || worm.x;
+    const currentHeadY = worm.points[0]?.y || worm.y;
+    worm.points = [];
+    for(let i=0;i<worm.targetLength;i++){
+      worm.points.push({x: currentHeadX - i*worm.segmentSpacing, y: currentHeadY});
+    }
+    
     initBalls(cfg);
     for(const b of balls) b.spawnT = 0;
     initSaws(cfg);
@@ -1083,6 +1108,7 @@
     invUntil=0; slowUntil=0; freezeUntil=0; ghostUntil=0; x2Until=0;
     slowMult=1;
     bannerUntil=0; spawnGraceUntil=0;
+    levelTransitionUntil=0;
     particles.length=0;
     lastSpecialAt=-999;
     showTitle=true;
@@ -1099,6 +1125,7 @@
     invUntil=0; slowUntil=0; freezeUntil=0; ghostUntil=0; x2Until=0;
     slowMult=1;
     bannerUntil=0; spawnGraceUntil=0;
+    levelTransitionUntil=0;
     particles.length=0;
     lastSpecialAt=-999;
     initWorm();
@@ -1123,6 +1150,7 @@
     slowMult = 1;
     bannerUntil = 0;
     spawnGraceUntil = 0;
+    levelTransitionUntil = 0;
     particles.length = 0;
     lastSpecialAt = -999;
     saws = [];
@@ -1318,8 +1346,7 @@
       score += add;
       const nextLv = levelForScore(score);
       const cfg = LEVELS[nextLv-1];
-      const growthBonus = Math.floor((level-1) * 0.15);
-      worm.targetLength += cfg.growthPerEat + growthBonus;
+      worm.targetLength += (nowT < x2Until) ? 0.2 : 0.1;
       for(const b of balls){
         b.speed += cfg.ballSpeedUpPerEat;
         if (nowT >= freezeUntil){
@@ -1597,27 +1624,45 @@
       gameT += dt;
     } else if(!paused && !gameOver){
       gameT += dt;
-      updateWorm(dt, gameT);
-      updateBalls(dt, gameT);
-      updateSaws(dt, gameT);
-      updateParticles(dt);
-      checkEat(gameT);
-      if(!gameOver && checkDeathByBalls(gameT)) die();
-      if(!gameOver && checkDeathBySaws(gameT)) die();
-      if(!muted && !bgMusicPlaying && gameT > 0.5) startBackgroundMusic();
+      // 레벨 전환 중에는 업데이트 중지
+      const isTransitioning = gameT < levelTransitionUntil;
+      if(!isTransitioning){
+        updateWorm(dt, gameT);
+        updateBalls(dt, gameT);
+        updateSaws(dt, gameT);
+        updateParticles(dt);
+        checkEat(gameT);
+        if(!gameOver && checkDeathByBalls(gameT)) die();
+        if(!gameOver && checkDeathBySaws(gameT)) die();
+        if(!muted && !bgMusicPlaying && gameT > 0.5) startBackgroundMusic();
+      }
     }
 
     drawBackground();
     if(!showTitle){
-      drawObstacles();
-      drawFood();
-      drawBalls(gameT);
-      drawSaws(gameT);
-      drawWorm(gameT);
-      drawParticles();
-      drawPointerHint();
-      drawBanner(gameT);
-      updateHud(gameT);
+      // 레벨 전환 페이드 효과
+      const isTransitioning = gameT < levelTransitionUntil;
+      const fadeAlpha = isTransitioning ? Math.min(1, (levelTransitionUntil - gameT) / 0.5) : 0;
+      
+      if(fadeAlpha > 0){
+        ctx.save();
+        ctx.globalAlpha = fadeAlpha;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W(), H());
+        ctx.restore();
+      }
+      
+      if(!isTransitioning || fadeAlpha < 0.5){
+        drawObstacles();
+        drawFood();
+        drawBalls(gameT);
+        drawSaws(gameT);
+        drawWorm(gameT);
+        drawParticles();
+        drawPointerHint();
+        drawBanner(gameT);
+        updateHud(gameT);
+      }
     }
     drawTitle(gameT);
     if(gameOver) drawGameOver();
