@@ -233,12 +233,17 @@
   
   function handlePointerDown(e) {
     e.preventDefault();
+    e.stopPropagation();
     
     // 타이틀 화면에서 터치 시 게임 시작
     if(showTitle){
       showTitle = false;
       paused = false;
       gameT = 0;
+      score = 0;
+      level = 1;
+      initWorm();
+      applyLevel(1, 0);
       if(!muted) startBackgroundMusic();
       return;
     }
@@ -272,12 +277,17 @@
   // Canvas에 직접 터치 이벤트 추가
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     
     // 타이틀 화면에서 터치 시 게임 시작
     if(showTitle){
       showTitle = false;
       paused = false;
       gameT = 0;
+      score = 0;
+      level = 1;
+      initWorm();
+      applyLevel(1, 0);
       if(!muted) startBackgroundMusic();
       return;
     }
@@ -289,6 +299,38 @@
     controlMode = 'pointer';
     resumeAudio();
   }, { passive: false });
+  
+  // Body에도 터치 이벤트 추가 (타이틀 화면용)
+  document.body.addEventListener('touchstart', (e) => {
+    if(showTitle){
+      e.preventDefault();
+      e.stopPropagation();
+      showTitle = false;
+      paused = false;
+      gameT = 0;
+      score = 0;
+      level = 1;
+      initWorm();
+      applyLevel(1, 0);
+      if(!muted) startBackgroundMusic();
+    }
+  }, { passive: false });
+  
+  // Body에 클릭 이벤트도 추가
+  document.body.addEventListener('click', (e) => {
+    if(showTitle){
+      e.preventDefault();
+      e.stopPropagation();
+      showTitle = false;
+      paused = false;
+      gameT = 0;
+      score = 0;
+      level = 1;
+      initWorm();
+      applyLevel(1, 0);
+      if(!muted) startBackgroundMusic();
+    }
+  });
   
   canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
@@ -544,20 +586,21 @@
   function drawTitle(nowT){
     if(!showTitle) return;
     
-    const fade = nowT < 0.3 ? nowT / 0.3 : 1;
+    // 타이틀 화면에서는 항상 표시 (fade 효과는 최소화)
+    const fade = 1;
     
     ctx.save();
-    ctx.fillStyle = `rgba(0,0,0,${0.8 * fade})`;
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
     ctx.fillRect(0,0,W(),H());
     
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
-    ctx.fillStyle = `rgba(255,255,255,${fade})`;
+    ctx.fillStyle = '#ffffff';
     ctx.font = '800 56px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     ctx.fillText('착상어드벤처', W()/2, H()/2 - 40);
     
-    ctx.fillStyle = `rgba(200,200,200,${fade * 0.8})`;
+    ctx.fillStyle = 'rgba(200,200,200,0.9)';
     ctx.font = '400 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     const hintText = isTouch ? '화면을 터치하여 시작' : '아무 키나 눌러서 시작';
     ctx.fillText(hintText, W()/2, H()/2 + 30);
@@ -1196,10 +1239,11 @@
   }
   
   // 초기화 (타이틀 화면 표시)
-  paused=true;
+  paused=false; // 타이틀 화면에서는 paused를 false로 설정하여 렌더링이 되도록 함
   showTitle=true;
   titleUntil=2.0;
-  reset();
+  gameT=0;
+  // reset()은 호출하지 않고 타이틀 화면만 표시
 
   /*** Effect activation ***/
   function activateFood(type, nowT){
@@ -1631,7 +1675,10 @@
     const dt = clamp((now-last)/1000, 0, 0.033);
     last = now;
 
-    if(!paused && !gameOver && !showTitle){
+    if(showTitle){
+      // 타이틀 화면에서는 시간만 증가
+      gameT += dt;
+    } else if(!paused && !gameOver){
       gameT += dt;
       updateWorm(dt, gameT);
       updateBalls(dt, gameT);
@@ -1643,8 +1690,6 @@
       
       // 배경음악 시작 (게임 시작 후)
       if(!muted && !bgMusicPlaying && gameT > 0.5) startBackgroundMusic();
-    } else if(showTitle){
-      gameT += dt;
     }
 
     drawBackground();
