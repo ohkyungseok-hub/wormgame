@@ -223,26 +223,96 @@
   window.addEventListener('keyup', (e)=> keys.delete(e.key.toLowerCase()));
 
   let pointer = { x: W()*0.5, y: H()*0.5, down:false };
-  window.addEventListener('pointermove', (e)=> { pointer.x = e.clientX; pointer.y = e.clientY; });
-  window.addEventListener('pointerdown', (e)=> { 
-    pointer.down = true; 
-    pointer.x = e.clientX; 
-    pointer.y = e.clientY; 
+  
+  // 모바일 터치 이벤트 처리
+  function handlePointerMove(e) {
+    e.preventDefault();
+    pointer.x = e.clientX || e.touches?.[0]?.clientX || pointer.x;
+    pointer.y = e.clientY || e.touches?.[0]?.clientY || pointer.y;
+  }
+  
+  function handlePointerDown(e) {
+    e.preventDefault();
+    pointer.down = true;
+    pointer.x = e.clientX || e.touches?.[0]?.clientX || pointer.x;
+    pointer.y = e.clientY || e.touches?.[0]?.clientY || pointer.y;
     resumeAudio();
     if(!muted && !bgMusicPlaying && !gameOver && !paused) startBackgroundMusic();
-  });
-  window.addEventListener('pointerup', ()=> { pointer.down = false; });
+    // 모바일에서는 터치 시 자동으로 pointer 모드 활성화
+    if(isTouch) controlMode = 'pointer';
+  }
+  
+  function handlePointerUp(e) {
+    e.preventDefault();
+    pointer.down = false;
+  }
+  
+  // Pointer 이벤트 (데스크톱 + 모바일)
+  window.addEventListener('pointermove', handlePointerMove);
+  window.addEventListener('pointerdown', handlePointerDown);
+  window.addEventListener('pointerup', handlePointerUp);
+  window.addEventListener('pointercancel', handlePointerUp);
+  
+  // Touch 이벤트 (모바일 전용, 추가 보장)
+  window.addEventListener('touchmove', handlePointerMove, { passive: false });
+  window.addEventListener('touchstart', handlePointerDown, { passive: false });
+  window.addEventListener('touchend', handlePointerUp, { passive: false });
+  window.addEventListener('touchcancel', handlePointerUp, { passive: false });
+  
+  // Canvas에 직접 터치 이벤트 추가
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    pointer.x = touch.clientX;
+    pointer.y = touch.clientY;
+    pointer.down = true;
+    controlMode = 'pointer';
+    resumeAudio();
+  }, { passive: false });
+  
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    pointer.x = touch.clientX;
+    pointer.y = touch.clientY;
+  }, { passive: false });
+  
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    pointer.down = false;
+  }, { passive: false });
+  
+  canvas.addEventListener('touchcancel', (e) => {
+    e.preventDefault();
+    pointer.down = false;
+  }, { passive: false });
 
   /*** Mobile UI ***/
   const controlsEl = document.getElementById('controls');
   const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  if (isTouch) controlsEl.classList.remove('hidden');
+  if (isTouch) {
+    controlsEl.classList.remove('hidden');
+    // 모바일에서는 자동으로 터치 모드 활성화
+    controlMode = 'pointer';
+  }
 
   function setVKey(name, on) { if (name in vkeys) vkeys[name] = on; }
 
   controlsEl.addEventListener('pointerdown', (e) => {
-    const btn = e.target.closest('.btn'); if (!btn) return;
-    e.preventDefault(); resumeAudio();
+    const btn = e.target.closest('.btn'); 
+    if (!btn) {
+      // 버튼이 아닌 영역을 터치하면 pointer 모드 활성화
+      if(isTouch) {
+        controlMode = 'pointer';
+        pointer.x = e.clientX;
+        pointer.y = e.clientY;
+        pointer.down = true;
+      }
+      return;
+    }
+    e.preventDefault(); 
+    e.stopPropagation(); // 이벤트 전파 방지
+    resumeAudio();
     const k = btn.dataset.k;
     if (k === 'pause') { paused = !paused; return; }
     if (k === 'reset') { reset(); return; }
