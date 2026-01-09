@@ -200,10 +200,7 @@
     
     // 타이틀 화면에서 아무 키나 누르면 시작
     if(showTitle){
-      showTitle = false;
-      paused = false;
-      gameT = 0;
-      if(!muted) startBackgroundMusic();
+      startGame();
       return;
     }
     
@@ -232,22 +229,16 @@
   }
   
   function handlePointerDown(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    
     // 타이틀 화면에서 터치 시 게임 시작
     if(showTitle){
-      showTitle = false;
-      paused = false;
-      gameT = 0;
-      score = 0;
-      level = 1;
-      initWorm();
-      applyLevel(1, 0);
-      if(!muted) startBackgroundMusic();
+      e.preventDefault();
+      e.stopPropagation();
+      startGame();
       return;
     }
     
+    e.preventDefault();
+    e.stopPropagation();
     pointer.down = true;
     pointer.x = e.clientX || e.touches?.[0]?.clientX || pointer.x;
     pointer.y = e.clientY || e.touches?.[0]?.clientY || pointer.y;
@@ -276,22 +267,15 @@
   
   // Canvas에 직접 터치 이벤트 추가
   canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // 타이틀 화면에서 터치 시 게임 시작
     if(showTitle){
-      showTitle = false;
-      paused = false;
-      gameT = 0;
-      score = 0;
-      level = 1;
-      initWorm();
-      applyLevel(1, 0);
-      if(!muted) startBackgroundMusic();
+      e.preventDefault();
+      e.stopPropagation();
+      startGame();
       return;
     }
     
+    e.preventDefault();
+    e.stopPropagation();
     const touch = e.touches[0];
     pointer.x = touch.clientX;
     pointer.y = touch.clientY;
@@ -305,14 +289,7 @@
     if(showTitle){
       e.preventDefault();
       e.stopPropagation();
-      showTitle = false;
-      paused = false;
-      gameT = 0;
-      score = 0;
-      level = 1;
-      initWorm();
-      applyLevel(1, 0);
-      if(!muted) startBackgroundMusic();
+      startGame();
     }
   }, { passive: false });
   
@@ -321,14 +298,16 @@
     if(showTitle){
       e.preventDefault();
       e.stopPropagation();
-      showTitle = false;
-      paused = false;
-      gameT = 0;
-      score = 0;
-      level = 1;
-      initWorm();
-      applyLevel(1, 0);
-      if(!muted) startBackgroundMusic();
+      startGame();
+    }
+  });
+  
+  // Canvas 클릭 이벤트도 추가
+  canvas.addEventListener('click', (e) => {
+    if(showTitle){
+      e.preventDefault();
+      e.stopPropagation();
+      startGame();
     }
   });
   
@@ -582,15 +561,14 @@
   // 타이틀 화면
   let showTitle = true;
   let titleUntil = 0;
+  let titleStartTime = 0;
   
   function drawTitle(nowT){
     if(!showTitle) return;
     
-    // 타이틀 화면에서는 항상 표시 (fade 효과는 최소화)
-    const fade = 1;
-    
+    // 타이틀 화면에서는 항상 표시
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.9)';
+    ctx.fillStyle = 'rgba(0,0,0,0.95)';
     ctx.fillRect(0,0,W(),H());
     
     ctx.textAlign = 'center';
@@ -600,12 +578,37 @@
     ctx.font = '800 56px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     ctx.fillText('착상어드벤처', W()/2, H()/2 - 40);
     
-    ctx.fillStyle = 'rgba(200,200,200,0.9)';
+    ctx.fillStyle = 'rgba(200,200,200,0.95)';
     ctx.font = '400 18px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
     const hintText = isTouch ? '화면을 터치하여 시작' : '아무 키나 눌러서 시작';
     ctx.fillText(hintText, W()/2, H()/2 + 30);
     
     ctx.restore();
+  }
+  
+  // 게임 시작 함수
+  function startGame(){
+    showTitle = false;
+    paused = false;
+    gameOver = false;
+    gameT = 0;
+    score = 0;
+    level = 1;
+    invUntil = 0;
+    slowUntil = 0;
+    freezeUntil = 0;
+    ghostUntil = 0;
+    x2Until = 0;
+    slowMult = 1;
+    bannerUntil = 0;
+    spawnGraceUntil = 0;
+    particles.length = 0;
+    lastSpecialAt = -999;
+    saws = [];
+    initWorm();
+    applyLevel(1, 0);
+    document.getElementById('gameOverButtons').classList.add('hidden');
+    if(!muted) startBackgroundMusic();
   }
 
   /*** Particles ***/
@@ -1239,11 +1242,35 @@
   }
   
   // 초기화 (타이틀 화면 표시)
-  paused=false; // 타이틀 화면에서는 paused를 false로 설정하여 렌더링이 되도록 함
-  showTitle=true;
-  titleUntil=2.0;
-  gameT=0;
-  // reset()은 호출하지 않고 타이틀 화면만 표시
+  paused = false; // 렌더링을 위해 false로 설정
+  showTitle = true;
+  titleUntil = 2.0;
+  gameT = 0;
+  titleStartTime = performance.now() / 1000;
+  
+  // 초기 상태 설정
+  score = 0;
+  level = 1;
+  gameOver = false;
+  invUntil = 0;
+  slowUntil = 0;
+  freezeUntil = 0;
+  ghostUntil = 0;
+  x2Until = 0;
+  slowMult = 1;
+  bannerUntil = 0;
+  spawnGraceUntil = 0;
+  particles = [];
+  lastSpecialAt = -999;
+  saws = [];
+  balls = [];
+  obstacles = [];
+  
+  // 초기 렌더링을 위해 한 번 그리기
+  setTimeout(() => {
+    drawBackground();
+    drawTitle(0);
+  }, 100);
 
   /*** Effect activation ***/
   function activateFood(type, nowT){
