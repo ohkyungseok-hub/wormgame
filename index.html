@@ -246,7 +246,7 @@
   }
   
   function handlePointerDown(e) {
-    // 타이틀 화면에서 터치 시 게임 시작
+    // 타이틀 화면에서 터치 시 게임 시작 (handleTitleScreenTouch가 먼저 처리하지만 이중 체크)
     if(showTitle){
       e.preventDefault();
       e.stopPropagation();
@@ -282,14 +282,38 @@
   window.addEventListener('touchend', handlePointerUp, { passive: false });
   window.addEventListener('touchcancel', handlePointerUp, { passive: false });
   
-  // Canvas에 직접 터치 이벤트 추가
+  // 타이틀 화면 터치/클릭 핸들러 (최우선 처리)
+  function handleTitleScreenTouch(e) {
+    if(!showTitle) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    
+    console.log('타이틀 화면 터치 감지 - 게임 시작');
+    startGame();
+    return false;
+  }
+  
+  // 모든 가능한 이벤트에 타이틀 화면 핸들러 추가 (캡처 단계에서)
+  document.addEventListener('touchstart', handleTitleScreenTouch, { capture: true, passive: false });
+  document.addEventListener('touchend', handleTitleScreenTouch, { capture: true, passive: false });
+  document.addEventListener('click', handleTitleScreenTouch, { capture: true, passive: false });
+  document.addEventListener('pointerdown', handleTitleScreenTouch, { capture: true, passive: false });
+  window.addEventListener('touchstart', handleTitleScreenTouch, { capture: true, passive: false });
+  window.addEventListener('touchend', handleTitleScreenTouch, { capture: true, passive: false });
+  window.addEventListener('click', handleTitleScreenTouch, { capture: true, passive: false });
+  window.addEventListener('pointerdown', handleTitleScreenTouch, { capture: true, passive: false });
+  document.body.addEventListener('touchstart', handleTitleScreenTouch, { capture: true, passive: false });
+  document.body.addEventListener('touchend', handleTitleScreenTouch, { capture: true, passive: false });
+  document.body.addEventListener('click', handleTitleScreenTouch, { capture: true, passive: false });
+  canvas.addEventListener('touchstart', handleTitleScreenTouch, { capture: true, passive: false });
+  canvas.addEventListener('touchend', handleTitleScreenTouch, { capture: true, passive: false });
+  canvas.addEventListener('click', handleTitleScreenTouch, { capture: true, passive: false });
+  
+  // Canvas에 직접 터치 이벤트 추가 (게임 중용)
   canvas.addEventListener('touchstart', (e) => {
-    if(showTitle){
-      e.preventDefault();
-      e.stopPropagation();
-      startGame();
-      return;
-    }
+    if(showTitle) return; // 타이틀 화면에서는 위 핸들러가 처리
     
     e.preventDefault();
     e.stopPropagation();
@@ -301,31 +325,9 @@
     resumeAudio();
   }, { passive: false });
   
-  // Body에도 터치 이벤트 추가 (타이틀 화면용)
-  document.body.addEventListener('touchstart', (e) => {
-    if(showTitle){
-      e.preventDefault();
-      e.stopPropagation();
-      startGame();
-    }
-  }, { passive: false });
-  
-  // Body에 클릭 이벤트도 추가
-  document.body.addEventListener('click', (e) => {
-    if(showTitle){
-      e.preventDefault();
-      e.stopPropagation();
-      startGame();
-    }
-  });
-  
-  // Canvas 클릭 이벤트도 추가
+  // Canvas 클릭 이벤트도 추가 (게임 중용)
   canvas.addEventListener('click', (e) => {
-    if(showTitle){
-      e.preventDefault();
-      e.stopPropagation();
-      startGame();
-    }
+    if(showTitle) return; // 타이틀 화면에서는 위 핸들러가 처리
   });
   
   canvas.addEventListener('touchmove', (e) => {
@@ -600,11 +602,19 @@
     const hintText = isTouch ? '화면을 터치하여 시작' : '아무 키나 눌러서 시작';
     ctx.fillText(hintText, W()/2, H()/2 + 30);
     
+    // 디버깅용: 타이틀 화면 상태 표시
+    ctx.fillStyle = 'rgba(255,255,0,0.5)';
+    ctx.font = '400 12px monospace';
+    ctx.fillText(`showTitle: ${showTitle}, paused: ${paused}`, W()/2, H()/2 + 60);
+    
     ctx.restore();
   }
   
   // 게임 시작 함수
   function startGame(){
+    if(!showTitle) return; // 이미 게임이 시작된 경우 중복 실행 방지
+    
+    console.log('게임 시작 함수 호출됨');
     showTitle = false;
     paused = false;
     gameOver = false;
@@ -622,10 +632,15 @@
     particles.length = 0;
     lastSpecialAt = -999;
     saws = [];
+    balls = [];
+    obstacles = [];
     initWorm();
     applyLevel(1, 0);
     document.getElementById('gameOverButtons').classList.add('hidden');
-    if(!muted) startBackgroundMusic();
+    resumeAudio();
+    if(!muted) {
+      setTimeout(() => startBackgroundMusic(), 100);
+    }
   }
 
   /*** Particles ***/
