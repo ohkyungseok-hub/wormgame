@@ -290,7 +290,6 @@
     e.stopPropagation();
     e.stopImmediatePropagation();
     
-    console.log('타이틀 화면 터치 감지 - 게임 시작');
     startGame();
     return false;
   }
@@ -602,11 +601,6 @@
     const hintText = isTouch ? '화면을 터치하여 시작' : '아무 키나 눌러서 시작';
     ctx.fillText(hintText, W()/2, H()/2 + 30);
     
-    // 디버깅용: 타이틀 화면 상태 표시
-    ctx.fillStyle = 'rgba(255,255,0,0.5)';
-    ctx.font = '400 12px monospace';
-    ctx.fillText(`showTitle: ${showTitle}, paused: ${paused}`, W()/2, H()/2 + 60);
-    
     ctx.restore();
   }
   
@@ -614,7 +608,6 @@
   function startGame(){
     if(!showTitle) return; // 이미 게임이 시작된 경우 중복 실행 방지
     
-    console.log('게임 시작 함수 호출됨');
     showTitle = false;
     paused = false;
     gameOver = false;
